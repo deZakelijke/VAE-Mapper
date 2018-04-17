@@ -86,7 +86,10 @@ latent_loss = -0.5 * tf.reduce_sum(1.0 + 2.0 * sd - tf.square(mn) - tf.exp(2.0 *
 loss = tf.reduce_mean(img_loss + latent_loss)
 # What is the adam optimizer? magic number here?
 optimizer = tf.train.AdamOptimizer(0.0005).minimize(loss)
-sess = tf.Session()
+inter_op_parallelism_threads = 1
+intra_op_parallelism_threads = 1
+sess = tf.Session(config = tf.ConfigProto(inter_op_parallelism_threads = inter_op_parallelism_threads,
+                                          intra_op_parallelism_threads = intra_op_parallelism_threads))
 sess.run(tf.global_variables_initializer())
 
 
