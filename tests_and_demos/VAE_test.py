@@ -109,17 +109,16 @@ class VAE(object):
 
     def generate_new_data(self):
         # Seems like an ugly fix
-        self.sess.run(tf.initialize_all_variables())
+        self.sess.run(tf.global_variables_initializer())
         randoms = [np.random.normal(0, 1, self.n_latent) for _ in range(10)]
         imgs = self.sess.run(self.dec, feed_dict = {self.sampled: randoms, self.keep_prob: 1.0})
         imgs = [np.reshape(imgs[i], [28, 28]) for i in range(len(imgs))]
         
         for img in imgs:
-            print("a")
-            plt.figure(figsize = (1, 1))
+            plt.figure(figsize = (5, 5))
             plt.axis('off')
             plt.imshow(img, cmap = 'gray')
-
+            plt.show()
 
     def save_model(self, model_name, global_step):
         saver = tf.train.Saver()
