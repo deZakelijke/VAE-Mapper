@@ -14,9 +14,37 @@ class VAE(object):
         self.inputs_decoder = 49 * dec_in_channels // 2
         self.X_in = tf.placeholder(dtype = tf.float32, shape = [None, 28, 28], name = 'X')
         self.Y    = tf.placeholder(dtype = tf.float32, shape = [None, 28, 28], name = 'Y')
-        
         self. Y_flat = tf.reshape(self.Y, shape = [-1, 28 * 28])
         self.keep_prob = tf.placeholder(dtype = tf.float32, shape = (), name = 'keep_prob')
+        # Number of threads that run in parallel
+        inter_op_parallelism_threads = 4
+        # Number of threads used for singe operation that can be run concurrently
+        intra_op_parallelism_threads = 4
+        # Create Session and init somehting?
+        self.sess = tf.Session(config = tf.ConfigProto(
+                               inter_op_parallelism_threads = inter_op_parallelism_threads,
+                               intra_op_parallelism_threads = intra_op_parallelism_threads))
+        self.sess.run(tf.global_variables_initializer())
+        self.sess.run(tf.local_variables_initializer())
+
+        # Connection between encoder and decoder
+        # Not sure if it should be here
+        self.sampled, self.mn, self.sd = self.encoder(self.X_in)
+        self.dec = self.decoder(self.sampled)
+        
+        # Reconstruction loss
+        unreshaped = tf.reshape(self.dec, [-1, 28*28])
+        self.img_loss = tf.reduce_sum(tf.squared_difference(unreshaped, self.Y_flat), 1)
+        # Don't quite see what this does?
+        self.latent_loss = -0.5 * tf.reduce_sum(1.0 + 2.0 * self.sd - tf.square(self.mn) - tf.exp(2.0 * self.sd), 1)
+        self.loss = tf.reduce_mean(self.img_loss + self.latent_loss)
+        # What is the adam optimizer? magic number here?
+        # Should this be done at init?
+        # If so, should the loss be redefined here or made into a class variable        
+        # Let's try
+        self.optimizer = tf.train.AdamOptimizer(0.0005).minimize(self.loss)
+        
+
 
 
     # leaky relu is not in tensorflow
@@ -46,7 +74,7 @@ class VAE(object):
     
     # Decoder function
     def decoder(self, sampled_z):
-        with tf.variable_scope("decoder", reuse = None):
+        with tf.variable_scope("decoder", reuse = tf.AUTO_REUSE):
             x = tf.layers.dense(sampled_z, units = self.inputs_decoder, activation = self.lrelu)
             x = tf.layers.dense(x, units = self.inputs_decoder * 2 + 1, activation = self.lrelu)
             x = tf.reshape(x, self.reshape_dim)
@@ -64,38 +92,13 @@ class VAE(object):
             img = tf.reshape(x, shape = [-1, 28, 28])
             return img
 
-    # Training function, maybe this should be split up more
     def train_model(self, iterations):
-        # Connection between encoder and decoder
-        self.sampled, mn, sd = self.encoder(self.X_in)
-        self.dec = self.decoder(self.sampled)
-        
-        # Reconstruction loss
-        unreshaped = tf.reshape(self.dec, [-1, 28*28])
-        img_loss = tf.reduce_sum(tf.squared_difference(unreshaped, self.Y_flat), 1)
-        # Don't quite see what this does?
-        latent_loss = -0.5 * tf.reduce_sum(1.0 + 2.0 * sd - tf.square(mn) - tf.exp(2.0 * sd), 1)
-        loss = tf.reduce_mean(img_loss + latent_loss)
-        # What is the adam optimizer? magic number here?
-        optimizer = tf.train.AdamOptimizer(0.0005).minimize(loss)
-        
-        # Number of threads that run in parallel
-        inter_op_parallelism_threads = 4
-        # Number of threads used for singe operation that can be run concurrently
-        intra_op_parallelism_threads = 4
-        self.sess = tf.Session(config = tf.ConfigProto(
-                               inter_op_parallelism_threads = inter_op_parallelism_threads,
-                               intra_op_parallelism_threads = intra_op_parallelism_threads))
-        self.sess.run(tf.global_variables_initializer())
-
-        # training part, should be a function
         for i in range(iterations):
             batch = [np.reshape(b, [28, 28]) for b in mnist.train.next_batch(batch_size = self.batch_size)[0]]
-            self.sess.run(optimizer, feed_dict = {self.X_in: batch, self.Y: batch, self.keep_prob: 0.8})
-            # magic number?
+            self.sess.run(self.optimizer, feed_dict = {self.X_in: batch, self.Y: batch, self.keep_prob: 0.8})
             if not i % 200:
-                ls, d, i_ls, d_ls, mu, sigm = self.sess.run([loss, self.dec, img_loss, 
-                                                        latent_loss, mn, sd], 
+                ls, d, i_ls, d_ls, mu, sigm = self.sess.run([self.loss, self.dec, self.img_loss, 
+                                                        self.latent_loss, self.mn, self.sd], 
                                                         feed_dict = {self.X_in: batch, self.Y: batch, self.keep_prob: 1.0})
                 plt.imshow(np.reshape(batch[0], [28, 28]), cmap = 'gray')
                 plt.show()
@@ -105,11 +108,14 @@ class VAE(object):
 
 
     def generate_new_data(self):
+        # Seems like an ugly fix
+        self.sess.run(tf.initialize_all_variables())
         randoms = [np.random.normal(0, 1, self.n_latent) for _ in range(10)]
         imgs = self.sess.run(self.dec, feed_dict = {self.sampled: randoms, self.keep_prob: 1.0})
-        imga = [np.reshape(imgs[i], [28, 28]) for i in range(len(imgs))]
+        imgs = [np.reshape(imgs[i], [28, 28]) for i in range(len(imgs))]
         
         for img in imgs:
+            print("a")
             plt.figure(figsize = (1, 1))
             plt.axis('off')
             plt.imshow(img, cmap = 'gray')
@@ -136,8 +142,8 @@ if __name__ == '__main__':
     iterations = 3000
     model_dir = "./model_dir/"
     model_name = "my_test_model"
-    train = True
-    gen = False
+    train = False
+    gen = True
 
     vae = VAE(batch_size, dec_in_channels, n_latent)
 
@@ -147,5 +153,6 @@ if __name__ == '__main__':
 
     if gen:
         vae.load_model(model_name, model_dir, iterations)
+        
         vae.generate_new_data()
     
