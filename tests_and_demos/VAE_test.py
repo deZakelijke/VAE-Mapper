@@ -1,5 +1,7 @@
 import tensorflow as tf
 import numpy as np
+import matplotlib
+matplotlib.use('tkagg')
 import matplotlib.pyplot as plt
 
 from tensorflow.examples.tutorials.mnist import input_data
@@ -17,9 +19,9 @@ class VAE(object):
         self. Y_flat = tf.reshape(self.Y, shape = [-1, 28 * 28])
         self.keep_prob = tf.placeholder(dtype = tf.float32, shape = (), name = 'keep_prob')
         # Number of threads that run in parallel
-        inter_op_parallelism_threads = 4
+        inter_op_parallelism_threads = 8
         # Number of threads used for singe operation that can be run concurrently
-        intra_op_parallelism_threads = 4
+        intra_op_parallelism_threads = 8
         # Create Session and init somehting?
         self.sess = tf.Session(config = tf.ConfigProto(
                                inter_op_parallelism_threads = inter_op_parallelism_threads,
@@ -93,6 +95,7 @@ class VAE(object):
             return img
 
     def train_model(self, iterations):
+        self.sess.run(tf.global_variables_initializer())
         for i in range(iterations):
             batch = [np.reshape(b, [28, 28]) for b in mnist.train.next_batch(batch_size = self.batch_size)[0]]
             self.sess.run(self.optimizer, feed_dict = {self.X_in: batch, self.Y: batch, self.keep_prob: 0.8})
@@ -107,26 +110,31 @@ class VAE(object):
                 print(i, ls, np.mean(i_ls), np.mean(d_ls))
 
 
-    def generate_new_data(self):
-        # Seems like an ugly fix
-        self.sess.run(tf.global_variables_initializer())
-        randoms = [np.random.normal(0, 1, self.n_latent) for _ in range(10)]
+    def generate_new_data(self, nr_samples):
+        randoms = [np.random.normal(0, 1, self.n_latent) for _ in range(nr_samples)]
         imgs = self.sess.run(self.dec, feed_dict = {self.sampled: randoms, self.keep_prob: 1.0})
         imgs = [np.reshape(imgs[i], [28, 28]) for i in range(len(imgs))]
-        
         for img in imgs:
             plt.figure(figsize = (5, 5))
             plt.axis('off')
             plt.imshow(img, cmap = 'gray')
             plt.show()
 
+
     def save_model(self, model_name, global_step):
         saver = tf.train.Saver()
         saver.save(self.sess, model_name, global_step = global_step)
+
         
     def load_model(self, model_name, model_dir, global_step):
+        #self.sess.run(tf.global_variables_initializer())
         saver = tf.train.import_meta_graph("%s-%s.meta" %(model_dir + model_name, global_step))
         saver.restore(self.sess, tf.train.latest_checkpoint(model_dir))
+        print("\n\n\n")
+        for v in tf.global_variables():
+            print(v)
+
+
 
 
 if __name__ == '__main__':
@@ -138,7 +146,8 @@ if __name__ == '__main__':
     batch_size = 64
     dec_in_channels = 1
     n_latent = 8
-    iterations = 3000
+    iterations = 100
+    nr_samples = 3
     model_dir = "./model_dir/"
     model_name = "my_test_model"
     train = False
@@ -152,6 +161,5 @@ if __name__ == '__main__':
 
     if gen:
         vae.load_model(model_name, model_dir, iterations)
-        
-        vae.generate_new_data()
+        vae.generate_new_data(nr_samples)
     
