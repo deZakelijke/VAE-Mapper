@@ -7,6 +7,7 @@ from torch.autograd import Variable
 from torch.nn import functional as F
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
+from VideoData import VideoData
 
 
 # argparsing
@@ -23,7 +24,7 @@ parser.add_argument('--seed', type=int, default=1, metavar='S',
 parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                             help='how many batches to wait before logging training status')
 args = parser.parse_args()
-args.cuda = not args.cuda and torch.cuda.is_available()
+args.cuda = args.cuda and torch.cuda.is_available()
 
 
 torch.manual_seed(args.seed)
@@ -33,14 +34,17 @@ if args.cuda:
 # get MNIST data
 # TODO replace with own data
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
-train_loader = torch.utils.data.DataLoader(
-            datasets.MNIST('../data', train=True, download=True,
-            transform=transforms.ToTensor()),
-            batch_size=args.batch_size, shuffle=True, **kwargs)
 
-test_loader = torch.utils.data.DataLoader(
-            datasets.MNIST('../data', train=False, transform=transforms.ToTensor()),
-            batch_size=args.batch_size, shuffle=True, **kwargs)
+#train = datasets.MNIST('../data', train=True, download=True,
+#            transform=transforms.ToTensor(),
+#            batch_size=args.batch_size, shuffle=True, **kwargs)
+#test = datasets.MNIST('../data', train=False, transform=transforms.ToTensor()),
+#            batch_size=args.batch_size, shuffle=True, **kwargs
+
+dataset = VideoData()
+
+train_loader = torch.utils.data.DataLoader(dataset)
+test_loader = torch.utils.data.DataLoader(dataset)
 
 
 class VAE(nn.Module):
@@ -110,7 +114,7 @@ def train(epoch):
     model.train()
     train_loss = 0
     # train_loader is from torch.utils.?.mnist
-    for batch_idx, (data, _) in enumerate(train_loader):
+    for batch_idx, data in enumerate(train_loader):
         data = Variable(data)
         if args.cuda:
             data = data.cuda()
@@ -159,5 +163,6 @@ for epoch in range(1, args.epochs + 1):
     sample = Variable(torch.randn(64, 20))
     if args.cuda:
         sample = sample.cuda()
+    sample = model.decode(sample).cpu()
     save_image(sample.data.view(64, 1, 28, 28), 
                'results/sample_' + str(epoch) + '.png')
