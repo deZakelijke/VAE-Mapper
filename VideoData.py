@@ -23,4 +23,5 @@ class VideoData(Dataset):
     def __getitem__(self, idx):
         path = self.path + str(idx + 1) + '.png'
         img = Image.open(path)
-        return np.asarray(img)
+        img = img.resize((64, 36))
+        return np.asarray(img, dtype=np.float64)

@@ -1,5 +1,6 @@
 from __future__ import print_function
 import argparse
+import numpy as np
 import torch
 import torch.utils.data
 from torch import nn, optim
@@ -32,7 +33,6 @@ if args.cuda:
     torch.cuda.manual_seed(args.seed)
 
 # get MNIST data
-# TODO replace with own data
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 
 #train = datasets.MNIST('../data', train=True, download=True,
@@ -43,8 +43,8 @@ kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 
 dataset = VideoData()
 
-train_loader = torch.utils.data.DataLoader(dataset)
-test_loader = torch.utils.data.DataLoader(dataset)
+train_loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, **kwargs)
+test_loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, **kwargs)
 
 
 class VAE(nn.Module):
@@ -57,19 +57,24 @@ class VAE(nn.Module):
         # first three are used in encoding, last two in decoding
         # Does that mean Z is 20d?
         # input_size = 784
-        self.flat_input_size = 2764800 # 1280 * 720 RGB
+        self.flat_input_size = 6912 # 1280 * 720 RGB
+
+        # Encoding layers
         self.fc1 = nn.Linear(self.flat_input_size, 400)
         self.fc21 = nn.Linear(400, 20)
         self.fc22 = nn.Linear(400, 20)
+
+        # Decoding layers
         self.fc3 = nn.Linear(20, 400)
-        self.fc4 = nn.Linear(400, input_size)
+        self.fc4 = nn.Linear(400, self.flat_input_size)
 
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
 
 
     def encode(self, x):
-        h1 = self.relu(self.fc1(x))
+        tmp = self.fc1(x)
+        h1 = self.relu(tmp)
         return self.fc21(h1), self.fc22(h1)
 
     # Read reparametrization trick again
@@ -96,7 +101,7 @@ class VAE(nn.Module):
 
 
 
-model = VAE()
+model = VAE().double()
 if args.cuda:
     model.cuda()
 optimizer = optim.Adam(model.parameters(), lr = 1e-3)
@@ -104,7 +109,7 @@ optimizer = optim.Adam(model.parameters(), lr = 1e-3)
 
 # Total loss function
 def loss_function(recon_x, x, mu, logvar):
-    size = 2764800
+    size = 6912
     BCE = F.binary_cross_entropy(recon_x, x.view(-1, size), size_average = False)
     # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
     # reparametrization?
@@ -145,7 +150,7 @@ def train(epoch):
 def test(epoch):
     model.eval()
     test_loss = 0
-    for i, (data, _) in enumerate(test_loader):
+    for i, data in enumerate(test_loader):
         if args.cuda:
             data = data.cuda()
         data = Variable(data, volatile = True)
@@ -153,21 +158,21 @@ def test(epoch):
         test_loss += loss_function(recon_batch, data, mu, logvar).data[0]
         if i == 0:
             n = min(data.size(0), 8)
-            size = (3, 1280, 720)
             comparison = torch.cat([data[:n], 
                                    recon_batch.view(args.batch_size, *size)[:n]])
-            save_image(comparison.data.cpu(), 'results/reconstruction_' + str(epoch) + '.png', nrow = n)
+            #save_image(comparison.data.cpu(), 'results/reconstruction_' + str(epoch) + '.png', nrow = n)
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
 
 
+size = (36, 64, 3)
 for epoch in range(1, args.epochs + 1):
     train(epoch)
     test(epoch)
-    sample = Variable(torch.randn(64, 20))
+    # 20 is the dimensonality of Z
+    sample = Variable(torch.randn(64, 20)).double()
     if args.cuda:
         sample = sample.cuda()
     sample = model.decode(sample).cpu()
-    size = (3, 1280, 720)
-    save_image(sample.data.view(64, *size), 
-               'results/sample_' + str(epoch) + '.png')
+    #save_image(sample.data.view(64, *size), 
+    #           'results/sample_' + str(epoch) + '.png')
