@@ -56,11 +56,13 @@ class VAE(nn.Module):
         #first number is 28*28, so size of input, same as last
         # first three are used in encoding, last two in decoding
         # Does that mean Z is 20d?
-        self.fc1 = nn.Linear(784, 400)
+        # input_size = 784
+        self.flat_input_size = 2764800 # 1280 * 720 RGB
+        self.fc1 = nn.Linear(self.flat_input_size, 400)
         self.fc21 = nn.Linear(400, 20)
         self.fc22 = nn.Linear(400, 20)
         self.fc3 = nn.Linear(20, 400)
-        self.fc4 = nn.Linear(400, 784)
+        self.fc4 = nn.Linear(400, input_size)
 
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
@@ -88,7 +90,7 @@ class VAE(nn.Module):
 
     # encode and decode a data point
     def forward(self, x):
-        mu, logvar = self.encode(x.view(-1, 784))
+        mu, logvar = self.encode(x.view(-1, self.flat_input_size))
         z = self.reparametrize(mu, logvar)
         return self.decode(z), mu, logvar
 
@@ -102,7 +104,8 @@ optimizer = optim.Adam(model.parameters(), lr = 1e-3)
 
 # Total loss function
 def loss_function(recon_x, x, mu, logvar):
-    BCE = F.binary_cross_entropy(recon_x, x.view(-1, 784), size_average = False)
+    size = 2764800
+    BCE = F.binary_cross_entropy(recon_x, x.view(-1, size), size_average = False)
     # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
     # reparametrization?
     KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
@@ -150,8 +153,9 @@ def test(epoch):
         test_loss += loss_function(recon_batch, data, mu, logvar).data[0]
         if i == 0:
             n = min(data.size(0), 8)
+            size = (3, 1280, 720)
             comparison = torch.cat([data[:n], 
-                                   recon_batch.view(args.batch_size, 1, 28, 28)[:n]])
+                                   recon_batch.view(args.batch_size, *size)[:n]])
             save_image(comparison.data.cpu(), 'results/reconstruction_' + str(epoch) + '.png', nrow = n)
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
@@ -164,5 +168,6 @@ for epoch in range(1, args.epochs + 1):
     if args.cuda:
         sample = sample.cuda()
     sample = model.decode(sample).cpu()
-    save_image(sample.data.view(64, 1, 28, 28), 
+    size = (3, 1280, 720)
+    save_image(sample.data.view(64, *size), 
                'results/sample_' + str(epoch) + '.png')
