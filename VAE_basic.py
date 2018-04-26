@@ -58,24 +58,26 @@ class VAE(nn.Module):
         # Does that mean Z is 20d?
         # input_size = 784
         self.flat_input_size = 6912 # 1280 * 720 RGB
+        self.latent_dims = 8
 
         # Encoding layers
-        self.fc1 = nn.Linear(self.flat_input_size, 400)
-        self.fc21 = nn.Linear(400, 20)
-        self.fc22 = nn.Linear(400, 20)
+        self.conv1 = nn.Conv2d(self.flat_input_size, 16, 3, stride=3)
+        self.conv2 = nn.Conv2d(16, self.latent_dims, 3, stride=2)
+        self.maxpool = nn.Maxpool2d(2)
 
         # Decoding layers
-        self.fc3 = nn.Linear(20, 400)
-        self.fc4 = nn.Linear(400, self.flat_input_size)
+        self.deConv1 = nn.ConvTranspose2d(self.latent_dims, 16, 3, stride=2)
+        self.deConv2 = nn.ConvTranspose2d(16, 8, 5, stride=3)
+        self.deconv3 = nn.ConvTranspose2d(8, self.flat_input_size, 2)
 
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
 
 
     def encode(self, x):
-        tmp = self.fc1(x)
-        h1 = self.relu(tmp)
-        return self.fc21(h1), self.fc22(h1)
+        h1 = self.maxpool(self.relu(self.conv1(x)))
+        h2 = self.maxpool(self.relu(self.conv2(h1)))
+        return h2, h2
 
     # Read reparametrization trick again
     # Seems to draw from normal dist with std 0.5 and mu=mu
@@ -89,8 +91,9 @@ class VAE(nn.Module):
 
 
     def decode(self, z):
-        h3 = self.relu(self.fc3(z))
-        return self.sigmoid(self.fc4(h3))
+        h3 = self.relu(self.deconv1(z))
+        h4 = self.relu(self.deconv2(h1))
+        return self.deconv3(h4)
 
 
     # encode and decode a data point
