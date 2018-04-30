@@ -110,7 +110,7 @@ class VAE(nn.Module):
 model = VAE().double()
 if args.cuda:
     model.cuda()
-optimizer = optim.Adam(model.parameters(), lr = 1e-3)
+optimizer = optim.Adam(model.parameters(), lr = 1e-2)
 
 
 # Total loss function
