@@ -23,10 +23,12 @@ parser.add_argument('--seed', type=int, default=1, metavar='S',
                             help='random seed (default: 1)')
 parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                             help='how many batches to wait before logging training status')
-parser.add_argument('--nr_images', type=int, default=1000, metavar='N',
+parser.add_argument('--nr-images', type=int, default=1000, metavar='N',
                             help='Number of images from the dataset that are used (defaut: 1000)')
-parser.add_argument('--save_path', type=str, default=None, metavar='P',
+parser.add_argument('--save-path', type=str, default='models/', metavar='P',
                             help='Path to file to save model')
+parser.add_argument('--learning-rate', type=float, default=1e-3, metavar='L',
+                            help='The learning rate of the model')
 
 args = parser.parse_args()
 args.cuda = args.cuda and torch.cuda.is_available()
@@ -54,7 +56,7 @@ test_loader = torch.utils.data.DataLoader(dataset,
 model = VAE().double()
 if args.cuda:
     model.cuda()
-optimizer = optim.Adam(model.parameters(), lr = 1e-2)
+optimizer = optim.Adam(model.parameters(), lr = args.learning_rate)
 
 
 # Maybe move functions somewhere else as well?
@@ -64,7 +66,6 @@ optimizer = optim.Adam(model.parameters(), lr = 1e-2)
 def loss_function(recon_x, x, mu, logvar):
     BCE = F.binary_cross_entropy(recon_x, x, size_average = False)
     # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
-    # reparametrization?
     KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
     return BCE + KLD
 
@@ -130,5 +131,10 @@ for epoch in range(1, args.epochs + 1):
     #           'results/sample_' + str(epoch) + '.png')
 
     # Save model
-    if args.save_path:
-        torch.save(model, args.save_path)
+    if args.save_path and not epoch % 50:
+        save_file = '{0}model_learning-rate_{1}_batch-size_{2}_epoch_{3}.pt'.format(
+                    args.save_path,
+                    args.learning_rate,
+                    args.batch_size,
+                    epoch)
+        torch.save(model, args.save_file)
