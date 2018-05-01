@@ -8,9 +8,15 @@ from torchvision import transforms, utils
 
 
 class VideoData(Dataset):
-    ''' Class to serve the video data to pytorch '''
+    ''' 
+    Class to serve the video data to pytorch 
+    '''
 
     def __init__(self, nr_images=1000, root_dir='images/'):
+        '''
+        nr_images is the size of the image dataset
+        root_dir is the path to the folder where the image dataset is stored
+        '''
         self.path = root_dir
         if os.path.isfile(root_dir + str(nr_images + 1) + '.png'):
             self.nr_images = nr_images

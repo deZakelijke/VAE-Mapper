@@ -137,4 +137,4 @@ for epoch in range(1, args.epochs + 1):
                     args.learning_rate,
                     args.batch_size,
                     epoch)
-        torch.save(model, args.save_file)
+        torch.save(model, save_file)
