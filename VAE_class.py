@@ -17,8 +17,10 @@ class VAE(nn.Module):
         self.latent_dims = 8
 
         # Encoding layers
-        self.conv1 = nn.Conv2d(3, 16, 3, stride=3, padding=1)
-        self.conv2 = nn.Conv2d(16, self.latent_dims, 3, stride=2, padding=1)
+        self.conv1_m = nn.Conv2d(3, 16, 3, stride=3, padding=1)
+        self.conv2_m = nn.Conv2d(16, self.latent_dims, 3, stride=2, padding=1)
+        self.conv1_s = nn.Conv2d(3, 16, 3, stride=3, padding=1)
+        self.conv2_s = nn.Conv2d(16, self.latent_dims, 3, stride=2, padding=1)
         self.maxpool = nn.MaxPool2d(2)
 
         # Decoding layers
@@ -31,9 +33,11 @@ class VAE(nn.Module):
 
 
     def encode(self, x):
-        h1 = self.maxpool(self.relu(self.conv1(x)))
-        h2 = self.maxpool(self.relu(self.conv2(h1)))
-        return h2, h2
+        h1_m = self.maxpool(self.relu(self.conv1_m(x)))
+        h2_m = self.maxpool(self.relu(self.conv2_m(h1_m)))
+        h1_s = self.maxpool(self.relu(self.conv1_s(x)))
+        h2_s = self.maxpool(self.relu(self.conv2_s(h1_s)))
+        return h2_m, h2_s
 
     # Read reparametrization trick again
     # Seems to draw from normal dist with std 0.5 and mu=mu

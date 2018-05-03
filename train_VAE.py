@@ -132,9 +132,10 @@ for epoch in range(1, args.epochs + 1):
 
     # Save model
     if args.save_path and not epoch % 50:
-        save_file = '{0}model_learning-rate_{1}_batch-size_{2}_epoch_{3}.pt'.format(
+        save_file = '{0}model_learning-rate_{1}_batch-size_{2}_epoch_{3}_nr-images_{4}.pt'.format(
                     args.save_path,
                     args.learning_rate,
                     args.batch_size,
-                    epoch)
+                    epoch,
+                    args.nr-images)
         torch.save(model, save_file)
