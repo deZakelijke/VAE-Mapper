@@ -55,11 +55,12 @@ class PathPlanner(object):
 
         # Linear path
         z_diff  = z_b - z_a
-        size = (nr_frames, 8, 3, 3) 
+        size = (nr_frames + 1, 8, 3, 3) 
         self.z_path = torch.zeros(size).double().cuda()
         self.z_path = Variable(self.z_path, volatile = True)
-        for i in range(1, nr_frames):
-            tmp = z_a + 1 / i * z_diff
+        self.z_path[-1] = z_b
+        for i in range(0, nr_frames + 1):
+            tmp = z_a + i / (nr_frames + 1) * z_diff
             self.z_path[i] = tmp
 
 
@@ -72,7 +73,8 @@ class PathPlanner(object):
 
 
 if __name__ == '__main__':
-    model_path = 'models/model_learning-rate_0.01_batch-size_128_epoch_1.pt'
+    model_path = 'models/model_learning-rate_0.001_batch-size_64_epoch_{0}_nr-images_2000.pt'.format(
+                 50)
     nr_frames = 10
 
     start = np.random.randint(1, high=1000)
