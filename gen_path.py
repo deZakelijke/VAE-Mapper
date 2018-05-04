@@ -14,16 +14,6 @@ from torchvision.utils import save_image
 from VideoData import VideoData
 from VAE_class import VAE
 
-# Load a trained model
-# Get two images
-# map to latent space
-# Get difference vector
-# Should the path itself be a class or the path planning?
-# The path consists of a sequence of points in the latent space
-# or images, if they have been converted to images
-# Path planning is a bit more than that, also contains the planning
-# methods
-
 
 class PathPlanner(object):
     '''
@@ -32,7 +22,6 @@ class PathPlanner(object):
 
     def __init__(self, model_path):
         self.model = torch.load(model_path)
-        # self.model.eval() ?
 
 
     def generate_latent_path(self, image_a, image_b, nr_frames):
@@ -62,6 +51,8 @@ class PathPlanner(object):
         for i in range(0, nr_frames + 1):
             tmp = z_a + i / (nr_frames + 1) * z_diff
             self.z_path[i] = tmp
+
+        # Improve linear path with gradient descend
 
 
     def convert_path_to_images(self, nr_frames):
