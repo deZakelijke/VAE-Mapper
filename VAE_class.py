@@ -15,29 +15,31 @@ class VAE(nn.Module):
 
         self.flat_input_size = 12288 # 64 * 64 * 3
         self.latent_dims = 8
-        self.img_chns
+        self.img_chns = 3
         self.filters = 32
+        self.intermediate_dim = 32 * 32
+        self.intermediate_flat = 23328 # 27 * 27 * 32
 
         # Encoding layers for the mean and logvar of the latent space
         self.conv1_m = nn.Conv2d(self.img_chns, self.img_chns, (2, 2))
         self.conv2_m = nn.Conv2d(self.img_chns, self.filters, (2, 2), stride=(2, 2))
         self.conv3_m = nn.Conv2d(self.filters, self.filters, 3, stride=(1, 1))
         self.conv4_m = nn.Conv2d(self.filters, self.filters, 3, stride=(1, 1))
-        self.fc1_m    = nn.Linear(self.filters, self.latent_dims ** 2)
-        self.fc2_m    = nn.Linear(self.latent_dims ** 2, self.latent_dims)
+        self.fc1_m    = nn.Linear(self.intermediate_flat, self.intermediate_dim)
+        self.fc2_m    = nn.Linear(self.intermediate_dim, self.latent_dims)
 
         self.conv1_s = nn.Conv2d(self.img_chns, self.img_chns, (2, 2))
         self.conv2_s = nn.Conv2d(self.img_chns, self.filters, (2, 2), stride=(2, 2))
         self.conv3_s = nn.Conv2d(self.filters, self.filters, 3, stride=(1, 1))
         self.conv4_s = nn.Conv2d(self.filters, self.filters, 3, stride=(1, 1))
-        self.fc1_s    = nn.Linear(self.filters, self.latent_dims ** 2)
-        self.fc2_s    = nn.Linear(self.filters ** 2, self.latent_dims)
+        self.fc1_s    = nn.Linear(self.intermediate_flat, self.intermediate_dim)
+        self.fc2_s    = nn.Linear(self.intermediate_dim, self.latent_dims)
 
 
         # Decoding layers
-        self.fc1_d    = nn.Linear(self.latent_dims, self.latent_dims ** 2)
-        self.fc2_d    = nn.Linear(self.latent_dims ** 2, self.filters * 64 / 2 * 64 /2)
-        self.deConv1 = nn.ConvTranspose2d(self.latent_dims, self.filters, 3, stride=(1, 1))
+        self.fc1_d    = nn.Linear(self.latent_dims, self.intermediate_dim)
+        self.fc2_d    = nn.Linear(self.intermediate_dim, self.filters * 64 // 2 * 64 // 2)
+        self.deConv1 = nn.ConvTranspose2d(self.filters, self.filters, 3, stride=(1, 1))
         self.deConv2 = nn.ConvTranspose2d(self.filters, self.filters, 3, stride=(1, 1))
         self.deConv3 = nn.ConvTranspose2d(self.filters, self.filters, (3, 3), stride=(2, 2))
         self.deConv4 = nn.ConvTranspose2d(self.filters, self.img_chns, 2)
@@ -53,14 +55,14 @@ class VAE(nn.Module):
         h2_m = self.relu(self.conv2_m(h1_m))
         h3_m = self.relu(self.conv3_m(h2_m))
         h4_m = self.relu(self.conv4_m(h3_m))
-        h5_m = self.relu(self.fc1_m(h4_m.view(-1)))
+        h5_m = self.relu(self.fc1_m(h4_m.view(-1, self.intermediate_flat)))
         h6_m = self.dropout(h5_m)
 
         h1_s = self.relu(self.conv1_m(x))
         h2_s = self.relu(self.conv2_m(h1_s))
         h3_s = self.relu(self.conv3_m(h2_s))
         h4_s = self.relu(self.conv4_m(h3_s))
-        h5_s = self.relu(self.fc1_m(h4_s.view(-1)))
+        h5_s = self.relu(self.fc1_m(h4_s.view(-1, self.intermediate_flat)))
         h6_s = self.dropout(h5_s)
         return self.fc2_m(h6_m), self.fc2_s(h6_s)
 
@@ -80,15 +82,17 @@ class VAE(nn.Module):
         h1 = self.relu(self.fc1_d(z))
         h2 = self.dropout(h1)
         h3 = self.relu(self.fc2_d(h2))
-        h4 = self.relu(self.deConv1(h3.view(-1, 3, 64, 64)))
-        h5 = self.relu(self.deConv2(h4))
-        h6 = self.relu(self.deConv3(h5))
-        return self.sigmoid(selfdeConv4(h6))
+        h4 = h3.view(-1, 64 // 2, 64 // 2, self.filters)
+        h5 = self.relu(self.deConv1(h4))
+        h6 = self.relu(self.deConv2(h5))
+        h7 = self.relu(self.deConv3(h6))
+        return self.sigmoid(self.deConv4(h7))
 
 
     # encode and decode a data point
     def forward(self, x):
         mu, logvar = self.encode(x.view(-1, 3, 64, 64))
+        print(np.shape(mu))
         z = self.reparametrize(mu, logvar)
         return self.decode(z), mu, logvar
 
