@@ -52,8 +52,8 @@ test_loader = torch.utils.data.DataLoader(dataset,
 
 #####
 # Class used to be here, moved to a separate file
-
-model = VAE().double()
+latent_dims = 8
+model = VAE(latent_dims).double()
 if args.cuda:
     model.cuda()
 optimizer = optim.Adam(model.parameters(), lr = args.learning_rate)
@@ -71,10 +71,8 @@ def loss_function(recon_x, x, mu, logvar):
 
 
 def train(epoch):
-    # model is a VAE object
     model.train()
     train_loss = 0
-    # train_loader is from torch.utils.?.mnist
     for batch_idx, data in enumerate(train_loader):
         data = Variable(data)
         if args.cuda:
@@ -123,7 +121,7 @@ for epoch in range(1, args.epochs + 1):
     train(epoch)
     test(epoch)
     # 8 is the dimensonality of Z
-    sample = Variable(torch.randn(64, 8, 8, 1)).double()
+    sample = Variable(torch.randn(64, latent_dims)).double()
     if args.cuda:
         sample = sample.cuda()
     sample = model.decode(sample).cpu()
