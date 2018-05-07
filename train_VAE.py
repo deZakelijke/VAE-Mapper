@@ -53,7 +53,9 @@ test_loader = torch.utils.data.DataLoader(dataset,
 #####
 # Class used to be here, moved to a separate file
 latent_dims = 8
-model = VAE(latent_dims).double()
+image_size = (64, 64)
+size = (3, *image_size)
+model = VAE(latent_dims, image_size).double()
 if args.cuda:
     model.cuda()
 optimizer = optim.Adam(model.parameters(), lr = args.learning_rate)
@@ -116,7 +118,6 @@ def test(epoch):
     print('====> Test set loss: {:.4f}'.format(test_loss))
 
 
-size = (3, 64, 64)
 for epoch in range(1, args.epochs + 1):
     train(epoch)
     test(epoch)

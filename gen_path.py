@@ -44,7 +44,7 @@ class PathPlanner(object):
 
         # Linear path
         z_diff  = z_b - z_a
-        size = (nr_frames + 1, 8, 3, 3) 
+        size = (nr_frames + 1, 8) 
         self.z_path = torch.zeros(size).double().cuda()
         self.z_path = Variable(self.z_path, volatile = True)
         self.z_path[-1] = z_b
@@ -64,8 +64,8 @@ class PathPlanner(object):
 
 
 if __name__ == '__main__':
-    model_path = 'models/model_learning-rate_0.001_batch-size_64_epoch_{0}_nr-images_2000.pt'.format(
-                 50)
+    model_path = 'models/model_learning-rate_0.001_batch-size_128_epoch_{0}_nr-images_2000.pt'.format(
+                 300)
     nr_frames = 10
 
     start = np.random.randint(1, high=1000)

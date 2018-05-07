@@ -9,12 +9,13 @@ from torch.nn import functional as F
 from torchvision import datasets, transforms
 
 class VAE(nn.Module):
-    def __init__(self, latent_dims=8):
+    def __init__(self, latent_dims=8, image_size=(64, 64)):
         # Inherit from parent class
         super().__init__()
 
         self.latent_dims = latent_dims
         self.img_chns = 3
+        self.image_size = image_size
         self.filters = 32
         self.intermediate_dim = 32 * 32
         self.intermediate_flat = 23328 # 27 * 27 * 32
@@ -91,7 +92,7 @@ class VAE(nn.Module):
 
     # encode and decode a data point
     def forward(self, x):
-        mu, logvar = self.encode(x.view(-1, 3, 64, 64))
+        mu, logvar = self.encode(x.view(-1, 3, *self.image_size))
         z = self.reparametrize(mu, logvar)
         return self.decode(z), mu, logvar
 
