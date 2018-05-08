@@ -53,6 +53,8 @@ class PathPlanner(object):
             self.z_path[i] = tmp
 
         # Improve linear path with gradient descend
+        # for i in iterations
+        #   Calculate difference between frames, derivative to latent features?
 
 
     def convert_path_to_images(self, nr_frames):
