@@ -80,14 +80,12 @@ def train(epoch):
         if args.cuda:
             data = data.cuda()
         optimizer.zero_grad()
-        # What is logvar and how is the object used as a function?
         recon_batch, mu, logvar = model(data)
         loss = loss_function(recon_batch, data, mu, logvar)
-        # backprop?
         loss.backward()
         train_loss += loss.data[0]
         optimizer.step()
-        # Print intermediate results
+
         if batch_idx % args.log_interval == 0:
             print('Train epoch: {} [{}/{} ({:.0f}%]\tLoss: {:.6f}'.format(
                 epoch, 
@@ -121,13 +119,13 @@ def test(epoch):
 for epoch in range(1, args.epochs + 1):
     train(epoch)
     test(epoch)
-    # 8 is the dimensonality of Z
-    sample = Variable(torch.randn(64, latent_dims)).double()
-    if args.cuda:
-        sample = sample.cuda()
-    sample = model.decode(sample).cpu()
-    #save_image(sample.data.view(64, *size), 
-    #           'results/sample_' + str(epoch) + '.png')
+    if epoch % 100 == 0:
+        sample = Variable(torch.randn(64, latent_dims)).double()
+        if args.cuda:
+            sample = sample.cuda()
+        sample = model.decode(sample).cpu()
+        save_image(sample.data.view(64, *size), 
+                   'results/sample_' + str(epoch) + '.png')
 
     # Save model
     if args.save_path and not epoch % 50:
