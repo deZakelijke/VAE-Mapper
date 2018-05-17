@@ -12,7 +12,7 @@ from VideoData import VideoData
 from VAE_class import VAE
 
 # argparsing
-parser = argparse.ArgumentParser(description='VAE MNIST Example')
+parser = argparse.ArgumentParser(description='VAE trainer for path planning')
 parser.add_argument('--batch-size', type=int, default=128, metavar='N',
                             help='input batch size for training (default: 128)')
 parser.add_argument('--epochs', type=int, default=10, metavar='N',
