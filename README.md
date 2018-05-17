@@ -1,4 +1,4 @@
-## Path Planning with a VAriational Autoencoder
+## Path Planning with a Variational Autoencoder
 Made by Micha de Groot
 
 The training data is a sequence of images extracted from a video. Given a video, it can be converted to th required images with the following command

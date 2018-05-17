@@ -38,6 +38,7 @@ torch.manual_seed(args.seed)
 if args.cuda:
     torch.cuda.manual_seed(args.seed)
 
+# TODO dit even begrijpen
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 dataset = VideoData(nr_images=args.nr_images)
 
@@ -107,7 +108,7 @@ def test(epoch):
         data = Variable(data, volatile = True)
         recon_batch, mu, logvar = model(data)
         test_loss += loss_function(recon_batch, data, mu, logvar).data[0]
-        if i == 0 and epoch % 100 == 0:
+        if i == 0 and epoch % 50 == 0:
             n = min(data.size(0), 8)
             comparison = torch.cat([data[:n], 
                                    recon_batch.view(args.batch_size, *size)[:n]])
@@ -119,7 +120,7 @@ def test(epoch):
 for epoch in range(1, args.epochs + 1):
     train(epoch)
     test(epoch)
-    if epoch % 100 == 0:
+    if epoch % 50 == 0:
         sample = Variable(torch.randn(64, latent_dims)).double()
         if args.cuda:
             sample = sample.cuda()
