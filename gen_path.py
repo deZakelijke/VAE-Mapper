@@ -35,6 +35,7 @@ class PathPlanner(nn.Module):
         self.dims = (-1, 3, 64, 64)
         self.size = (nr_frames, 8)
         self.model = torch.load(model_path)
+        self.nr_frames = nr_frames
 
 
     def generate_latent_path(self, image_a, image_b, nr_frames):
@@ -74,7 +75,7 @@ class PathPlanner(nn.Module):
         decoded_path  = self.model.decode(self.z_path)
         decoded_start = self.model.decode(self.z_a)
         decoded_dest  = self.model.decode(self.z_b)
-        loss = self.loss_function(decoded_path, decoded_start, decoded_dest, nr_frames)
+        loss = self.loss_function(decoded_path, decoded_start, decoded_dest, self.nr_frames)
         loss.backward(decoded_path, retain_graph=True)
         print('Loss on path: {}'.format(loss.data[0]))
         optimizer.step()
@@ -132,16 +133,28 @@ class PathPlanner(nn.Module):
         image_path[-1] = self.model.decode(self.z_b)
         save_image(image_path.data, 'results/path.png', nrow=int(np.sqrt(nr_frames)) + 1)
 
-    def save_path_to_file(self, save_path):
+    def save_path_to_file(self, save_path, epochs):
         """ Save latent path to file """
-        return
-        numpy_path = self.z_path.data.numpy()
-        # add start and dest
-        picke.dump(numpy_path, open(save_path, 'wb'))
+        numpy_path = np.zeros((self.size[0] + 2, self.size[1]))
+        numpy_path[1:-1] = self.z_path.data.cpu().numpy()
+        numpy_path[0] = self.z_a.data.cpu().numpy()
+        numpy_path[-1] = self.z_b.data.cpu().numpy()
+        file_name = "{0}z_path_nr_frames_{1}_epochs_{2}.pt".format(
+                    save_path, 
+                    self.nr_frames + 2,
+                    epochs)
+        pickle.dump(numpy_path, open(file_name, 'wb'))
 
     def load_path_from_file(self, load_path):
-        """ Load latent path from file """
-        pass
+        """ Load latent path from file 
+       
+        Args:
+            load_path: filename of the pickle file you want to load
+        """
+        numpy_path = pickle.load(load_path)
+        self.z_a = Variable(torch.from_numpy(numpy_path[0]).double().cuda())
+        self.z_b = Variable(torch.from_numpy(numpy_path[-1]).double.cuda())
+        self.z_path = nn.Parameter(torch.from_numpy(numpy_path[1:-1]).double.cuda(), requires_grad=True)
 
 
 if __name__ == '__main__':
@@ -149,7 +162,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_path', 
                         type = str, 
                         default = 'models/model_learning-rate_0.001_' + \
-                        'batch-size_64_epoch_{0}_nr-images_1549.pt'.format(50),
+                        'batch-size_128_epoch_{0}_nr-images_2000_house.pt'.format(500),
                         metavar = 'P', 
                         help = 'Path to the trained VAE model')
     parser.add_argument('--nr_frames', 
@@ -173,9 +186,9 @@ if __name__ == '__main__':
                         help = 'Don\'t save path to sequence of images')
     parser.add_argument('--save_z_path',
                         type = str,
-                        default = 'models/z_path_frames_24.pt',
+                        default = 'models/',
                         metavar = 'P',
-                        help = 'Path to file to store latent z_path in')
+                        help = 'Path to folder to store latent z_path in')
     parser.add_argument('--load_z_path',
                         type = str,
                         default = None,
@@ -197,8 +210,6 @@ if __name__ == '__main__':
     start = np.random.randint(1, high=1000)
     dest = np.random.randint(1001, high=2000)
     simple_path = False
-    learning_rate = 1e-2
-    epochs = 0
 
     path_planner = PathPlanner(args.model_path, args.nr_frames)
 
@@ -210,8 +221,8 @@ if __name__ == '__main__':
         start = Image.open('images/' + str(args.start) + '.png').resize((64, 64))
         dest = Image.open('images/' + str(args.dest) + '.png').resize((64, 64))
         path_planner.generate_latent_path(start, dest, args.nr_frames)
-        optimizer = optim.Adam([path_planner.z_path], lr = learning_rate)
-        for i in range(epochs):
+        optimizer = optim.Adam([path_planner.z_path], lr = args.learning_rate)
+        for i in range(args.epochs):
             print('Epoch:', i)
             path_planner.gradient_descend_path()
 
@@ -219,6 +230,6 @@ if __name__ == '__main__':
         path_planner.convert_path_to_images(args.nr_frames)
 
     if args.save_z_path:
-        path_planner.save_path_to_file(args.save_z_path)
+        path_planner.save_path_to_file(args.save_z_path, args.epochs)
 
 
