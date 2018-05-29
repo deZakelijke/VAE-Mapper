@@ -92,7 +92,14 @@ class PathPlanner(nn.Module):
                            error of previous frame
             nr_frames:     Number of frames in the path excluding start and dest
         """
-        loss_tensor = Variable(torch.zeros(nr_frames, 3, 64, 64).double().cuda())
+
+        # Find affine(?) matrix A and B that are the best affine map for both
+        # g(z_i) -> g(z_i-1) and g(z_i) -> g(z_i+1) respectively
+        # Options:
+        #   Init A and B random, use GD 
+
+        #loss_tensor = Variable(torch.zeros(nr_frames, 3, 64, 64).double().cuda())
+        loss_tensor = 0
         for i in range(nr_frames): 
             if i is 0:
                 loss_tensor[i] = (decoded_start - decoded_path[i]) ** 2 \
@@ -103,6 +110,21 @@ class PathPlanner(nn.Module):
             else:
                 loss_tensor[i] = (decoded_path[i] - decoded_path[i + 1]) ** 2 \
                                + (decoded_path[i - 1] - decoded_path[i]) ** 2
+
+
+            if i is 0:
+                # find Affine_prev with start
+                # Get first loss part
+            else:
+                # find Affine_prev with i-1
+                # Get first loss part
+
+            if i is nr_frames - 1:
+                # find Affine_next wit hend
+                # Get second loss part 
+            else:
+                # Find Affine_next with i + 1
+                # get second part of loss
         return torch.sum(loss_tensor)
 
     def simple_path(self, start, dest, nr_frames):
@@ -116,13 +138,25 @@ class PathPlanner(nn.Module):
         stride = (dest - start) // nr_frames
         self.z_path = torch.zeros(self.size).double().cuda()
         self.z_path = Variable(self.z_path, volatile = True)
-        for i in range(0, nr_frames):
+
+        z_a = Image.open('images/' + str(start) + '.png').resize((64, 64))
+        z_a = transforms.ToTensor()(z_a).double().cuda()
+        z_a = Variable(z_a, volatile = True)
+        z_a = self.model.encode(z_a.view(self.dims))
+        self.z_a = self.model.reparametrize(*z_a)
+        z_b = Image.open('images/' + str(dest) + '.png').resize((64, 64))
+        z_b = transforms.ToTensor()(z_b).double().cuda()
+        z_b = Variable(z_b, volatile = True)
+        z_b = self.model.encode(z_b.view(self.dims))
+        self.z_b = self.model.reparametrize(*z_b)
+
+        for i in range(1, nr_frames + 1):
             tmp = Image.open('images/' + str(start + i * stride) + '.png').resize((64, 64))
             tmp = transforms.ToTensor()(tmp).double().cuda()
             tmp = Variable(tmp, volatile = True)
             tmp = self.model.encode(tmp.view(self.dims))
             tmp = self.model.reparametrize(*tmp)
-            self.z_path[i] = tmp
+            self.z_path[i - 1] = tmp
 
     def convert_path_to_images(self, nr_frames):
         """ Converts the path in the latent space to a sequence of images """
@@ -150,11 +184,17 @@ class PathPlanner(nn.Module):
        
         Args:
             load_path: filename of the pickle file you want to load
+
+        Returns:
+            returns the number of frames from the loaded z_path
         """
-        numpy_path = pickle.load(load_path)
+        numpy_path = pickle.load(open(load_path, "rb"))
         self.z_a = Variable(torch.from_numpy(numpy_path[0]).double().cuda())
-        self.z_b = Variable(torch.from_numpy(numpy_path[-1]).double.cuda())
-        self.z_path = nn.Parameter(torch.from_numpy(numpy_path[1:-1]).double.cuda(), requires_grad=True)
+        self.z_b = Variable(torch.from_numpy(numpy_path[-1]).double().cuda())
+        self.z_path = nn.Parameter(torch.from_numpy(numpy_path[1:-1]).double().cuda(), requires_grad=True)
+        self.nr_frames = len(numpy_path[1:-1])
+        self.size = (self.nr_frames, self.size[1])
+        return self.nr_frames
 
 
 if __name__ == '__main__':
@@ -162,14 +202,14 @@ if __name__ == '__main__':
     parser.add_argument('--model_path', 
                         type = str, 
                         default = 'models/model_learning-rate_0.001_' + \
-                        'batch-size_128_epoch_{0}_nr-images_2000_house.pt'.format(500),
+                        'batch-size_64_epoch_{0}_nr-images_2000.pt'.format(300),
                         metavar = 'P', 
                         help = 'Path to the trained VAE model')
     parser.add_argument('--nr_frames', 
                         type = int,
                         default = 22,
                         metavar = 'N',
-                        help = 'Number of frames in the output excluding start and end frame')
+                        help = 'Number of frames in the output excluding start and end frame (default: 22)')
     parser.add_argument('--start',
                         type = int,
                         default = 1,
@@ -188,12 +228,16 @@ if __name__ == '__main__':
                         type = str,
                         default = 'models/',
                         metavar = 'P',
-                        help = 'Path to folder to store latent z_path in')
+                        help = 'Path to folder to store latent z_path in (default: models/)')
     parser.add_argument('--load_z_path',
                         type = str,
                         default = None,
                         metavar = 'P',
                         help = 'Path to pickle file to load latent z_path with')
+    parser.add_argument('--pick_path',
+                        action = 'store_true',
+                        default = False,
+                        help = 'Create path by picking images from the  data instead of generating it')
     parser.add_argument('--epochs',
                         type = int,
                         default = 10,
@@ -209,18 +253,22 @@ if __name__ == '__main__':
     
     start = np.random.randint(1, high=1000)
     dest = np.random.randint(1001, high=2000)
-    simple_path = False
 
     path_planner = PathPlanner(args.model_path, args.nr_frames)
 
-    if simple_path:
+    if args.pick_path and args.load_z_path:
+        raise RuntimeError('Can\' have both load_z_path and pick_path enabled')
+        
+    if args.pick_path:
         path_planner.simple_path(args.start, args.dest, args.nr_frames)
     elif args.load_z_path:
-        path_planner.load_path_from_file(args.load_z_path)
+        args.nr_frames = path_planner.load_path_from_file(args.load_z_path)
     else:
         start = Image.open('images/' + str(args.start) + '.png').resize((64, 64))
         dest = Image.open('images/' + str(args.dest) + '.png').resize((64, 64))
         path_planner.generate_latent_path(start, dest, args.nr_frames)
+
+    if args.epochs:
         optimizer = optim.Adam([path_planner.z_path], lr = args.learning_rate)
         for i in range(args.epochs):
             print('Epoch:', i)
