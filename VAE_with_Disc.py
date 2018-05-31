@@ -44,7 +44,6 @@ class VAE_GAN(nn.Module):
         self.fc1_s    = nn.Linear(self.intermediate_flat, self.intermediate_dim)
         self.fc2_s    = nn.Linear(self.intermediate_dim, self.latent_dims)
 
-
         # Decoding layers
         self.fc1_de   = nn.Linear(self.latent_dims, self.intermediate_dim)
         self.fc2_de   = nn.Linear(self.intermediate_dim, self.filters * self.intermediate_dim2 * self.intermediate_dim2)
@@ -132,16 +131,21 @@ class VAE_GAN(nn.Module):
 
         recon_x_disc = self.discriminate(recon_x)
         z_dec_disc = self.discriminate(recon_x_p)
-        x_disc = selfdiscriminate(x)
+        x_disc = self.discriminate(x)
             
-        return mu, logvar, z_x, z_p, recon_x, recon_x_p, recon_x_disc, z_dec_disc, z_disc
+        return recon_x, mu, logvar, recon_x_disc, x_disc, z_dec_disc
 
-    def loss(self, recon_x, x, mu, logvar, recon_x_disc, x_disc, z_dec_disc):
+    def loss_function(self, recon_x, x, mu, logvar, recon_x_disc, x_disc, z_dec_disc):
         BCE  = F.binary_cross_entropy(recon_x, x, size_average = False)
         KLD  = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        # Maybe change -log(x) to log(1-x)
-        GANL = torch.log(z_dec_disc) + torch.log(recon_x_disc)
         L_enc  = BCE + KLD
-        L_dec  = BCE + KLD - GANL
-        L_disc = GANL - torch.log(x_disc)
+        L_dec  = BCE + KLD - torch.sum(torch.log(z_dec_disc))
+        L_disc = -torch.sum(torch.log(x_disc) + torch.log(1- z_dec_disc))
+        return L_enc, L_dec, L_disc
 
+    def discriminator_loss(self, x_disc, z_dec_disc):
+        """ Separate loss function to train the discriminator beforehand
+
+        """
+        loss = -torch.sum(torch.log(x_disc) + torch.log(1 - z_dec_disc))
+        return loss
