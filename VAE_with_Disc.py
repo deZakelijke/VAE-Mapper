@@ -135,11 +135,11 @@ class VAE_GAN(nn.Module):
             
         return recon_x, mu, logvar, recon_x_disc, x_disc, z_dec_disc
 
-    def loss_function(self, recon_x, x, mu, logvar, recon_x_disc, x_disc, z_dec_disc):
+    def loss_function(self, recon_x, x, mu, logvar, recon_x_disc, x_disc, z_dec_disc, gamma):
         BCE  = F.binary_cross_entropy(recon_x, x, size_average = False)
         KLD  = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
         L_enc  = BCE + KLD
-        L_dec  = BCE + KLD - torch.sum(torch.log(z_dec_disc))
+        L_dec  = BCE + KLD - torch.sum(torch.log(z_dec_disc)) * gamma
         L_disc = -torch.sum(torch.log(x_disc) + torch.log(1- z_dec_disc))
         return L_enc, L_dec, L_disc
 

@@ -12,10 +12,10 @@ from VideoData import VideoData
 from VAE_with_Disc import VAE_GAN
 
 
-def train(epoch):
+def train(epoch, gamma):
     model.train()
 
-    if epoch == 1:
+    if not (epoch - 1) % 50:
         for batch_idx, data in enumerate(train_loader):
             data = Variable(data)
             if args.cuda:
@@ -44,7 +44,7 @@ def train(epoch):
 
         recon_batch, mu, logvar, recon_batch_disc, x_disc, z_dec_disc  = model(data)
         enc_loss, dec_loss, disc_loss = model.loss_function(recon_batch, data, mu, 
-                                        logvar, recon_batch_disc, x_disc, z_dec_disc)
+                                        logvar, recon_batch_disc, x_disc, z_dec_disc, gamma)
 
         enc_loss.backward(retain_graph=True)
         dec_loss.backward(retain_graph=True)
@@ -77,7 +77,7 @@ def train(epoch):
         epoch, train_loss[0] / len(train_loader.dataset)))
 
 
-def test(epoch):
+def test(epoch, gamma):
     model.eval()
     test_loss = 0
     for i, data in enumerate(test_loader):
@@ -85,7 +85,7 @@ def test(epoch):
             data = data.cuda()
         data = Variable(data, volatile = True)
         recon_batch, mu, logvar, *discriminators = model(data)
-        loss = model.loss_function(recon_batch, data, mu, logvar, *discriminators)
+        loss = model.loss_function(recon_batch, data, mu, logvar, *discriminators, gamma)
         test_loss += torch.sum(loss[0]).data[0]
         test_loss += torch.sum(loss[1]).data[0]
         test_loss += torch.sum(loss[2]).data[0]
@@ -140,6 +140,7 @@ test_loader = torch.utils.data.DataLoader(dataset,
 latent_dims = 8
 image_size = (64, 64)
 size = (3, *image_size)
+gamma = 10
 model = VAE_GAN(latent_dims, image_size).double()
 if args.cuda:
     model.cuda()
@@ -156,8 +157,8 @@ optimizer_enc = optim.Adam(model.parameters(), lr = args.learning_rate)
 
 
 for epoch in range(1, args.epochs + 1):
-    train(epoch)
-    test(epoch)
+    train(epoch, gamma)
+    test(epoch, gamma)
     if epoch % 50 == 0:
         sample = Variable(torch.randn(64, latent_dims)).double()
         if args.cuda:
