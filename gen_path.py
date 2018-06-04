@@ -14,7 +14,10 @@ from torchvision import datasets, transforms
 from torchvision.utils import save_image
 from VideoData import VideoData
 from VAE_class import VAE
+from loss_functions import LossFunctions as LF
 
+class IllegalArgumentError(ValueError):
+    pass
 
 class PathPlanner(nn.Module):
     """ Class for planning a path through latent space
@@ -40,6 +43,10 @@ class PathPlanner(nn.Module):
 
     def generate_latent_path(self, image_a, image_b, nr_frames):
         """ Generate a linear interpolation in the latent space
+
+        Generate a linear path in the latent space by encoding
+        image_a and image_b. Then creaate a tensor with evenly
+        spacced points in the latent space between those two points.
 
         Args:
             image_a: start of interpolation, PIL image
@@ -68,85 +75,42 @@ class PathPlanner(nn.Module):
             self.z_path[i - 1] = tmp
         self.z_path = nn.Parameter(self.z_path.data.clone(), requires_grad=True)
 
-    def gradient_descend_path(self):
+    def gradient_descend_path(self, loss_func):
         """ Perform gradient descend on the latent path """
 
         optimizer.zero_grad()
         decoded_path  = self.model.decode(self.z_path)
         decoded_start = self.model.decode(self.z_a)
         decoded_dest  = self.model.decode(self.z_b)
-        loss = self.loss_function(decoded_path, decoded_start, decoded_dest, self.nr_frames)
+        loss = loss_func(decoded_path, decoded_start, decoded_dest, self.nr_frames)
         loss.backward(decoded_path, retain_graph=True)
         print('Loss on path: {}'.format(loss.data[0]))
         optimizer.step()
 
-    def loss_function(self, decoded_path, decoded_start, decoded_dest, nr_frames):
-        """ Returns loss as ssd between previous and next frame for all frames
-
-        Args:
-            decoded_path:  Decoded frames in the path for which the loss is calculated.
-                           The error is only calculated of these frames
-            decoded_start: First decoded frame of total path. Used to calculate 
-                           error of next frame
-            decoded_dest:  Last decoded frame of total path. Used to calculate
-                           error of previous frame
-            nr_frames:     Number of frames in the path excluding start and dest
-        """
-
-        # Find affine(?) matrix A and B that are the best affine map for both
-        # g(z_i) -> g(z_i-1) and g(z_i) -> g(z_i+1) respectively
-        # Options:
-        #   Init A and B random, use GD 
-
-        #loss_tensor = Variable(torch.zeros(nr_frames, 3, 64, 64).double().cuda())
-        loss_tensor = 0
-        for i in range(nr_frames): 
-            if i is 0:
-                loss_tensor[i] = (decoded_start - decoded_path[i]) ** 2 \
-                               + (decoded_path[i] - decoded_path[i + 1]) ** 2
-            elif i is nr_frames - 1:
-                loss_tensor[i] = (decoded_path[i] - decoded_dest) ** 2 \
-                               + (decoded_path[i - 1] - decoded_path[i]) ** 2
-            else:
-                loss_tensor[i] = (decoded_path[i] - decoded_path[i + 1]) ** 2 \
-                               + (decoded_path[i - 1] - decoded_path[i]) ** 2
-
-
-            if i is 0:
-                # find Affine_prev with start
-                # Get first loss part
-            else:
-                # find Affine_prev with i-1
-                # Get first loss part
-
-            if i is nr_frames - 1:
-                # find Affine_next wit hend
-                # Get second loss part 
-            else:
-                # Find Affine_next with i + 1
-                # get second part of loss
-        return torch.sum(loss_tensor)
 
     def simple_path(self, start, dest, nr_frames):
         """ Make simple path from the dataset
 
-            A sequence of evenly spaced images are picked from
-            the data set and passed through the model to see if 
-            the model could theoretically produce a valid path.
+        A sequence of evenly spaced images are picked from
+        the data set and passed through the model to see if 
+        the model could theoretically produce a valid path.
+        Prints the error of the path according to the loss function.
         """
             
         stride = (dest - start) // nr_frames
         self.z_path = torch.zeros(self.size).double().cuda()
-        self.z_path = Variable(self.z_path, volatile = True)
+        self.z_path = Variable(self.z_path)
+        self.z_path.retain_grad()
 
         z_a = Image.open('images/' + str(start) + '.png').resize((64, 64))
         z_a = transforms.ToTensor()(z_a).double().cuda()
-        z_a = Variable(z_a, volatile = True)
+        z_a = Variable(z_a)
         z_a = self.model.encode(z_a.view(self.dims))
         self.z_a = self.model.reparametrize(*z_a)
+
         z_b = Image.open('images/' + str(dest) + '.png').resize((64, 64))
         z_b = transforms.ToTensor()(z_b).double().cuda()
-        z_b = Variable(z_b, volatile = True)
+        z_b = Variable(z_b)
         z_b = self.model.encode(z_b.view(self.dims))
         self.z_b = self.model.reparametrize(*z_b)
 
@@ -157,6 +121,8 @@ class PathPlanner(nn.Module):
             tmp = self.model.encode(tmp.view(self.dims))
             tmp = self.model.reparametrize(*tmp)
             self.z_path[i - 1] = tmp
+        self.z_path = nn.Parameter(self.z_path.data.clone(), requires_grad=True)
+
 
     def convert_path_to_images(self, nr_frames):
         """ Converts the path in the latent space to a sequence of images """
@@ -212,12 +178,12 @@ if __name__ == '__main__':
                         help = 'Number of frames in the output excluding start and end frame (default: 22)')
     parser.add_argument('--start',
                         type = int,
-                        default = 1,
+                        default = 255,
                         metavar = 'N',
                         help = 'Frame index of start point')
     parser.add_argument('--dest',
                         type = int,
-                        default = 60,
+                        default = 415,
                         metavar = 'N',
                         help = 'Frame index of destination point')
     parser.add_argument('--no_display_path',
@@ -248,16 +214,27 @@ if __name__ == '__main__':
                         default = 1e-2,
                         metavar = 'L',
                         help = 'Learning rate of gradient descend')
+    parser.add_argument('--loss_function',
+                        type = str,
+                        default = 'l2',
+                        metavar = 'S',
+                        help = 'Loss function for gradient descend: l2 | l1')
 
     args = parser.parse_args()
+    FUNCTION_MAP = {'l2' : LF.l2_loss,
+                    'l1' : LF.l1_loss}
     
     start = np.random.randint(1, high=1000)
     dest = np.random.randint(1001, high=2000)
+    if not args.loss_function:
+        raise IllegalArgumentError('Invalid loss function')
+    else:
+        loss_func = FUNCTION_MAP[args.loss_function]
 
     path_planner = PathPlanner(args.model_path, args.nr_frames)
 
     if args.pick_path and args.load_z_path:
-        raise RuntimeError('Can\' have both load_z_path and pick_path enabled')
+        raise IllegalArgumentError('Can\' have both load_z_path and pick_path enabled')
         
     if args.pick_path:
         path_planner.simple_path(args.start, args.dest, args.nr_frames)
@@ -270,9 +247,9 @@ if __name__ == '__main__':
 
     if args.epochs:
         optimizer = optim.Adam([path_planner.z_path], lr = args.learning_rate)
-        for i in range(args.epochs):
+        for i in range(1, args.epochs + 1):
             print('Epoch:', i)
-            path_planner.gradient_descend_path()
+            path_planner.gradient_descend_path(loss_func)
 
     if args.no_display_path:
         path_planner.convert_path_to_images(args.nr_frames)
