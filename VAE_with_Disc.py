@@ -6,7 +6,7 @@ from torch.autograd import Variable
 from torch.nn import functional as F
 from torchvision import datasets, transforms
 
-class VAE_GAN(nn.Module):
+class VAE(nn.Module):
     """ Class that combines a VAE and a GAN in one generative model
 
     Learns a latent epresentation for a set of images while simultaneously 
@@ -52,13 +52,6 @@ class VAE_GAN(nn.Module):
         self.deConv3  = nn.ConvTranspose2d(self.filters, self.filters, (3, 3), stride=(2, 2))
         self.deConv4  = nn.ConvTranspose2d(self.filters, self.img_chns, 2)
 
-        # Discriminating layers
-        self.conv1_di = nn.Conv2d(self.img_chns, self.filters, (2, 2))
-        self.conv2_di = nn.Conv2d(self.filters, self.filters, (2, 2))
-        self.conv3_di = nn.Conv2d(self.filters, self.filters, 3)
-        self.fc1_di   = nn.Linear(self.intermediate_dim_disc, self.intermediate_dim)
-        self.fc2_di   = nn.Linear(self.intermediate_dim, 1)
-
         # Other network componetns
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout()
@@ -101,16 +94,6 @@ class VAE_GAN(nn.Module):
         h8 = self.sigmoid(self.deConv4(h7))
         return h8
 
-    def discriminate(self, x):
-        h1 = self.relu(self.conv1_di(x))
-        h2 = self.relu(self.conv2_di(h1))
-        h3 = self.dropout(h2)
-        h4 = self.relu(self.conv3_di(h3))
-        h5 = self.dropout(h4)
-        h6 = h5.view(-1, self.intermediate_dim_disc)
-        h7 = self.relu(self.fc1_di(h6))
-        h8 = self.sigmoid(self.fc2_di(h7))
-        return h8
 
     def forward(self, x):
         """ Feed forward function of the network
@@ -124,28 +107,52 @@ class VAE_GAN(nn.Module):
         """
         mu, logvar = self.encode(x.view(-1, 3, *self.image_size))
         z_x = self.reparametrize(mu, logvar)
-        z_p = Variable(mu.data.new(mu.size()).normal_())
-
         recon_x = self.decode(z_x)
-        recon_x_p = self.decode(z_p)
-
-        recon_x_disc = self.discriminate(recon_x)
-        z_dec_disc = self.discriminate(recon_x_p)
-        x_disc = self.discriminate(x)
             
-        return recon_x, mu, logvar, recon_x_disc, x_disc, z_dec_disc
+        return recon_x, mu, logvar
 
-    def loss_function(self, recon_x, x, mu, logvar, recon_x_disc, x_disc, z_dec_disc, gamma):
-        BCE  = F.binary_cross_entropy(recon_x, x, size_average = False)
-        KLD  = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        L_enc  = BCE + KLD
-        L_dec  = BCE + KLD - torch.sum(torch.log(z_dec_disc)) * gamma
-        L_disc = -torch.sum(torch.log(x_disc) + torch.log(1- z_dec_disc))
-        return L_enc, L_dec, L_disc
+    def loss_function(self, recon_x, x, mu, logvar, recon_x_disc, labels):
+        BCE = F.binary_cross_entropy(recon_x, x, size_average = False)
+        KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+        DL  = F.binary_cross_entropy(recon_x_disc, labels)
+        return BCE + KLD, DL
 
-    def discriminator_loss(self, x_disc, z_dec_disc):
-        """ Separate loss function to train the discriminator beforehand
 
-        """
-        loss = -torch.sum(torch.log(x_disc) + torch.log(1 - z_dec_disc))
-        return loss
+class Discriminator(nn.Module):
+    """
+
+    """
+    def __init__(self, latent_dims=8, image_size=(64, 64)):
+        super().__init__()
+
+        self.filters = 64
+        self.flat = 512 * 4 * 4
+        self.img_chns = 3
+
+        self.conv1 = nn.Conv2d(self.img_chns, self.filters, (2, 2), stride = 2)
+        self.conv2 = nn.Conv2d(self.filters, self.filters * 2, (2, 2), stride = 2)
+        self.bn1   = nn.BatchNorm2d(self.filters * 2)
+        self.conv3 = nn.Conv2d(self.filters * 2, self.filters * 4, (2, 2), stride = 2)
+        self.bn2   = nn.BatchNorm2d(self.filters * 4)
+        self.conv4 = nn.Conv2d(self.filters * 4, self.filters * 8, (2, 2), stride = 2)
+        self.bn3   = nn.BatchNorm2d(self.filters * 8)
+        self.fc    = nn.Linear(self.flat, 1)
+
+        self.relu = nn.ReLU()
+        self.sigmoid = nn.Sigmoid()
+
+
+    def discriminate(self, x):
+        h1 = self.relu(self.conv1(x))
+        h2 = self.bn1(self.relu(self.conv2(h1)))
+        h3 = self.bn2(self.relu(self.conv3(h2)))
+        h4 = self.bn3(self.relu(self.conv4(h3)))
+        h5 = h4.view(-1, self.flat)
+        return self.sigmoid(self.fc(h5))
+
+    def forward(self, x):
+        return self.discriminate(x)
+
+    def loss_function(self, disc_x, labels):
+        BCE = F.binary_cross_entropy(disc_x, labels, size_average = False)
+        return BCE

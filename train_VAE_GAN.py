@@ -9,86 +9,97 @@ from torch.nn import functional as F
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
 from VideoData import VideoData
-from VAE_with_Disc import VAE_GAN
+from VAE_with_Disc import VAE, Discriminator
 
 
-def train(epoch, gamma):
-    model.train()
+def train(epoch):
+    VAE_model.train()
+    GAN_model.train()
 
-    if not (epoch - 1) % 50:
-        for batch_idx, data in enumerate(train_loader):
-            data = Variable(data)
-            if args.cuda:
-                data = data.cuda()
-            optimizer_enc.zero_grad()
-    
-            z_p = torch.zeros([data.shape[0], latent_dims]).normal_()
-            z_p = Variable(z_p.double().cuda())
-            z_dec_disc = model.discriminate(model.decode(z_p))
-            data_disc = model.discriminate(data)
-            loss = model.discriminator_loss(data_disc, z_dec_disc)
-            loss.backward()
-            optimizer_enc.step()
-    
-            if batch_idx % args.log_interval == 0:
-                print("Id:", batch_idx)
-
-    train_loss = [0, 0, 0, 0]
+    train_loss = [0, 0]
     for batch_idx, data in enumerate(train_loader):
+        labels = torch.zeros(data.shape[0], 1)
+        labels = Variable(labels).double()
+        noise_variable = torch.zeros(data.shape[0], latent_dims).double().normal_()
+        noise_variable = Variable(noise_variable).double()
         data = Variable(data)
         if args.cuda:
             data = data.cuda()
-        optimizer_enc.zero_grad()
-        #optimizer_dec.zero_grad()
-        #optimizer_dis.zero_grad()
+            labels = labels.cuda()
+            noise_variable = noise_variable.cuda()
 
-        recon_batch, mu, logvar, recon_batch_disc, x_disc, z_dec_disc  = model(data)
-        enc_loss, dec_loss, disc_loss = model.loss_function(recon_batch, data, mu, 
-                                        logvar, recon_batch_disc, x_disc, z_dec_disc, gamma)
 
-        enc_loss.backward(retain_graph=True)
-        dec_loss.backward(retain_graph=True)
-        disc_loss.backward()
+        # Optimize discriminator
+        GAN_model.zero_grad()
+        labels.fill_(1)
+        #noise_variable.resize_(data.size(0), latent_dims, 1, 1)
 
-        train_loss[1] += enc_loss.data[0]
-        train_loss[2] += dec_loss.data[0]
-        train_loss[3] += disc_loss.data[0]
-        train_loss[0] = sum(train_loss[1:])
+        predicted_real_labels  = GAN_model(data)
+        real_GAN_loss = GAN_model.loss_function(predicted_real_labels, labels)
+        real_GAN_loss.backward()
+        
+        gen_data = VAE_model.decode(noise_variable)
+        labels.fill_(0)
+        predicted_fake_labels = GAN_model(gen_data.detach())
+        fake_GAN_loss = GAN_model.loss_function(predicted_fake_labels, labels)
+        fake_GAN_loss.backward()
+        GAN_opt.step()
+        
+        GAN_loss = real_GAN_loss.data[0] + fake_GAN_loss.data[0]
+        train_loss[0] += GAN_loss
 
-        optimizer_enc.step()
-        #optimizer_dec.step()
-        #optimizer_dis.step()
+        # Optimize VAE
+        VAE_model.zero_grad()
+        recon_batch, mu, logvar = VAE_model(data)
+        
+        labels.fill_(1)
+        predicted_gen_labels = GAN_model.discriminate(recon_batch)
+        rec_loss, gen_loss = VAE_model.loss_function(recon_batch, data, mu, 
+                                                     logvar, predicted_gen_labels, labels)
+        rec_loss.backward(retain_graph = True)
+        gen_loss.backward()
+        VAE_opt.step()
+                
+        VAE_loss = rec_loss.data[0] + gen_loss.data[0]
+        train_loss[1] += VAE_loss
+
 
         if batch_idx % args.log_interval == 0:
-            print('Train epoch: {} [{}/{} ({:.0f}%]\n\
-                Encoding loss: {:.6f}\n\
-                Decoding loss: {:.6f}\n\
-                Discriminator loss: {:.6f}'.format(
-                epoch, 
-                batch_idx * len(data),
-                len(train_loader.dataset),
-                100. * batch_idx / len(train_loader),
-                enc_loss.data[0] / len(data),
-                dec_loss.data[0] / len(data),
-                disc_loss.data[0] / len(data),
-                ))
+            print('Train epoch: {} [{}/{} ({:.0f}%]\nGAN loss: {:.6f}, VAE loss: {:.6f}'.format(
+                    epoch, 
+                    batch_idx * len(data),
+                    len(train_loader.dataset),
+                    100. * batch_idx / len(train_loader),
+                    GAN_loss / len(data),
+                    VAE_loss / len(data),
+                    ))
 
     print('====> Epoch: {} Average loss: {:.4f}'.format(
-        epoch, train_loss[0] / len(train_loader.dataset)))
+        epoch, (train_loss[0] + train_loss[1]) / len(train_loader.dataset)))
 
 
-def test(epoch, gamma):
-    model.eval()
+def test(epoch):
+    VAE_model.eval()
+    GAN_model.eval()
+
+    # Don't test every epoch
+    if epoch % 4:
+        return
+
     test_loss = 0
     for i, data in enumerate(test_loader):
+        labels = torch.ones(data.shape[0], 1)
+        labels = Variable(labels).double()
+        data = Variable(data, volatile = True)
         if args.cuda:
             data = data.cuda()
-        data = Variable(data, volatile = True)
-        recon_batch, mu, logvar, *discriminators = model(data)
-        loss = model.loss_function(recon_batch, data, mu, logvar, *discriminators, gamma)
-        test_loss += torch.sum(loss[0]).data[0]
-        test_loss += torch.sum(loss[1]).data[0]
-        test_loss += torch.sum(loss[2]).data[0]
+            labels = labels.cuda()
+
+        recon_batch, mu, logvar = VAE_model(data)
+        disc_recon_data = GAN_model(recon_batch)
+        loss = VAE_model.loss_function(recon_batch, data, mu, logvar, disc_recon_data, labels)
+        test_loss += loss[0].data[0] + loss[1].data[0]
+
         if i == 0 and epoch % 50 == 0:
             n = min(data.size(0), 8)
             comparison = torch.cat([data[:n], 
@@ -140,39 +151,41 @@ test_loader = torch.utils.data.DataLoader(dataset,
 latent_dims = 8
 image_size = (64, 64)
 size = (3, *image_size)
-gamma = 10
-model = VAE_GAN(latent_dims, image_size).double()
+VAE_model = VAE(latent_dims, image_size).double()
+GAN_model = Discriminator(latent_dims, image_size).double()
 if args.cuda:
-    model.cuda()
+    VAE_model.cuda()
+    GAN_model.cuda()
 
-# Three optimizers are needed, one for each part of the network
-# I could make three long lists of all the separate parts, but that would
-# be quite ugly code. Maybe make an iterable in the __init__ of the network for
-# each part of the network to be used here.
-# For now, lets see what happens with one optimizer
-optimizer_enc = optim.Adam(model.parameters(), lr = args.learning_rate)
-#optimizer_dec = optim.Adam(model.parameters(), lr = args.learning_rate)
-#optimizer_dis = optim.Adam(model.parameters(), lr = args.learning_rate)
+VAE_opt = optim.Adam(VAE_model.parameters(), lr = args.learning_rate, betas = (0.5, 0.999))
+GAN_opt = optim.Adam(GAN_model.parameters(), lr = args.learning_rate, betas = (0.5, 0.999))
 
 
 
 for epoch in range(1, args.epochs + 1):
-    train(epoch, gamma)
-    test(epoch, gamma)
+    train(epoch)
+    test(epoch)
     if epoch % 50 == 0:
         sample = Variable(torch.randn(64, latent_dims)).double()
         if args.cuda:
             sample = sample.cuda()
-        sample = model.decode(sample).cpu()
+        sample = VAE_model.decode(sample).cpu()
         save_image(sample.data.view(64, *size), 
-                   'results/sample_GAN_' + str(epoch) + '.png')
+                   'results/sample_VAE_GAN_' + str(epoch) + '.png')
 
     # Save model
     if args.save_path and not epoch % 50:
-        save_file = '{0}model_learning-rate_{1}_batch-size_{2}_epoch_{3}_nr-images_{4}.pt'.format(
+        save_file = '{0}VAE_model_learning-rate_{1}_batch-size_{2}_epoch_{3}_nr-images_{4}.pt'.format(
                     args.save_path,
                     args.learning_rate,
                     args.batch_size,
                     epoch,
                     args.nr_images)
-        torch.save(model, save_file)
+        torch.save(VAE_model, save_file)
+        save_file = '{0}GAN_model_learning-rate_{1}_batch-size_{2}_epoch_{3}_nr-images_{4}.pt'.format(
+                    args.save_path,
+                    args.learning_rate,
+                    args.batch_size,
+                    epoch,
+                    args.nr_images)
+        torch.save(GAN_model, save_file)
