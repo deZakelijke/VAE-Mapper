@@ -83,7 +83,7 @@ def test(epoch):
     GAN_model.eval()
 
     # Don't test every epoch
-    if epoch % 4:
+    if epoch % 5:
         return
 
     test_loss = 0
@@ -113,7 +113,7 @@ def test(epoch):
 # argparsing
 parser = argparse.ArgumentParser(description='VAE trainer for path planning')
 parser.add_argument('--batch-size', type=int, default=64, metavar='N',
-                            help='input batch size for training (default: 128)')
+                            help='input batch size for training (default: 64)')
 parser.add_argument('--epochs', type=int, default=10, metavar='N',
                             help='number of epochs to train (default: 10)')
 parser.add_argument('--cuda', action='store_true', default=False,
@@ -122,8 +122,8 @@ parser.add_argument('--seed', type=int, default=1, metavar='S',
                             help='random seed (default: 1)')
 parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                             help='how many batches to wait before logging training status')
-parser.add_argument('--nr-images', type=int, default=1000, metavar='N',
-                            help='Number of images from the dataset that are used (defaut: 1000)')
+parser.add_argument('--nr-images', type=int, default=2000, metavar='N',
+                            help='Number of images from the dataset that are used (defaut: 2000)')
 parser.add_argument('--save-path', type=str, default='models/', metavar='P',
                             help='Path to file to save model')
 parser.add_argument('--learning-rate', type=float, default=1e-3, metavar='L',
