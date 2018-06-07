@@ -67,16 +67,17 @@ class LossFunctions(object):
 
         loss = 0
         for i in range(nr_frames):
-            print("Frame:", i)
+            if not i % 10:
+                print("Frame:", i)
             if i is 0:
-                loss += ssim(decoded_start, decoded_path[i], shape)
+                loss -= ssim(decoded_start, decoded_path[i], shape)
             else:
-                loss += ssim(decoded_path[i - 1], decoded_path[i], shape)
+                loss -= ssim(decoded_path[i - 1], decoded_path[i], shape)
 
             if i is nr_frames - 1:
-                loss += ssim(decoded_path[i], decoded_dest, shape)
+                loss -= ssim(decoded_path[i], decoded_dest, shape)
             else:
-                loss += ssim(decoded_path[i], decoded_path[i + 1], shape)
+                loss -= ssim(decoded_path[i], decoded_path[i + 1], shape)
         print("Time for epoch:", time.time() - start)
         return loss
 
