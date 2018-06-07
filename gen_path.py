@@ -218,12 +218,13 @@ if __name__ == '__main__':
                         type = str,
                         default = 'l2',
                         metavar = 'S',
-                        help = 'Loss function for gradient descend: l2 | l1 | ssim')
+                        help = 'Loss function for gradient descend: l2 | l1 | ssim | correlation')
 
     args = parser.parse_args()
     FUNCTION_MAP = {'l2' : LF.l2_loss,
                     'l1' : LF.l1_loss,
-                    'ssim' : LF.ssim_loss}
+                    'ssim' : LF.ssim_loss,
+                    'correlation' : LF.correlation_loss}
     
     start = np.random.randint(1, high=1000)
     dest = np.random.randint(1001, high=2000)

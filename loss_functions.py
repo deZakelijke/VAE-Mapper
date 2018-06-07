@@ -82,6 +82,44 @@ class LossFunctions(object):
         return loss
 
 
+    def correlation_loss(decoded_path, decoded_start, decoded_dest, nr_frames):
+        loss = 0
+        for i in range(nr_frames):
+            if i is 0:
+                mean_prev = decoded_start.mean()
+                std_prev  = decoded_start.std()
+                mean_curr = decoded_path[i].mean()
+                std_curr  = decoded_path[i].std()
+            else:
+                mean_prev = mean_curr
+                std_prev  = std_curr
+                mean_curr = mean_next
+                std_curr  = std_next
+               
+            if i is nr_frames - 1:
+                mean_next = decoded_dest.mean()
+                std_next  = decoded_dest.std()
+            else:
+                mean_next = decoded_path[i + 1].mean()
+                std_next  = decoded_path[i + 1].std()
+
+            if i is 0:
+                loss -= torch.dot((decoded_path[i] - mean_curr) / std_curr,
+                                  (decoded_start   - mean_prev) / std_prev)
+            else:
+                loss -= torch.dot((decoded_path[i]     - mean_curr) / std_curr,
+                                  (decoded_path[i - 1] - mean_prev) / std_prev)
+
+            if i is nr_frames - 1:
+                loss -= torch.dot((decoded_path[i] - mean_curr) / std_curr,
+                                  (decoded_dest    - mean_next) / std_next)
+            else:
+                loss -= torch.dot((decoded_path[i]     - mean_curr) / std_curr,
+                                  (decoded_path[i + 1] - mean_next) / std_next)
+
+        return loss
+
+
 def ssim(image_a, image_b, shape):
     image_a = image_a.view(3, 74, 74)
     image_b = image_b.view(3, 74, 74)
