@@ -83,7 +83,7 @@ class PathPlanner(nn.Module):
         decoded_start = self.model.decode(self.z_a)
         decoded_dest  = self.model.decode(self.z_b)
         loss = loss_func(decoded_path, decoded_start, decoded_dest, self.nr_frames)
-        loss.backward(decoded_path, retain_graph=True)
+        loss.backward(retain_graph=True)
         print('Loss on path: {}'.format(loss.data[0]))
         optimizer.step()
 
@@ -218,11 +218,12 @@ if __name__ == '__main__':
                         type = str,
                         default = 'l2',
                         metavar = 'S',
-                        help = 'Loss function for gradient descend: l2 | l1')
+                        help = 'Loss function for gradient descend: l2 | l1 | ssim')
 
     args = parser.parse_args()
     FUNCTION_MAP = {'l2' : LF.l2_loss,
-                    'l1' : LF.l1_loss}
+                    'l1' : LF.l1_loss,
+                    'ssim' : LF.ssim_loss}
     
     start = np.random.randint(1, high=1000)
     dest = np.random.randint(1001, high=2000)

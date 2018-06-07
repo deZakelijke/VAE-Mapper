@@ -1,7 +1,9 @@
 import numpy as np
 import torch
+import time
 from torch import nn, optim
 from torch.autograd import Variable
+from torch.nn import functional as F
 from VAE_class import VAE
 
 
@@ -55,3 +57,49 @@ class LossFunctions(object):
 
         return torch.sum(loss_tensor)
 
+    def ssim_loss(decoded_path, decoded_start, decoded_dest, nr_frames):
+        start = time.time()
+        pad = (5, 5, 5, 5)
+        shape = (64, 64)
+        decoded_path  = F.pad(decoded_path, pad)
+        decoded_start = F.pad(decoded_start, pad)
+        decoded_dest  = F.pad(decoded_dest, pad)
+
+        loss = 0
+        for i in range(nr_frames):
+            print("Frame:", i)
+            if i is 0:
+                loss += ssim(decoded_start, decoded_path[i], shape)
+            else:
+                loss += ssim(decoded_path[i - 1], decoded_path[i], shape)
+
+            if i is nr_frames - 1:
+                loss += ssim(decoded_path[i], decoded_dest, shape)
+            else:
+                loss += ssim(decoded_path[i], decoded_path[i + 1], shape)
+        print("Time for epoch:", time.time() - start)
+        return loss
+
+
+def ssim(image_a, image_b, shape):
+    image_a = image_a.view(3, 74, 74)
+    image_b = image_b.view(3, 74, 74)
+    C1 = 1e-10
+    C2 = 1e-10
+    C3 = 1e-10
+    ssim = 0
+    for i in range(5, shape[0] + 5):
+        for j in range(5, shape[1] + 5):
+            m_a = image_a[:, i - 5:i + 5, j - 5:j + 5].mean()
+            m_b = image_b[:, i - 5:i + 5, j - 5:j + 5].mean()
+            v_a = image_a[:, i - 5:i + 5, j - 5:j + 5] - m_a
+            v_b = image_b[:, i - 5:i + 5, j - 5:j + 5] - m_b
+            s_a = torch.sqrt(torch.sum(v_a ** 2))
+            s_b = torch.sqrt(torch.sum(v_b ** 2))
+
+            I = (2 * m_a * m_b + C1) / (m_a ** 2 + m_b ** 2 + C1)
+            C = (2 * s_a * s_b + C2) / (s_a ** 2 + s_b ** 2 + C2)
+            S = (torch.sum(v_a * v_b) + C3) / (s_a * s_b + C3)
+            ssim += I * C * S
+    return ssim
+                
