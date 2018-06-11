@@ -11,19 +11,24 @@ class LossFunctions(object):
     """ Class that contains loss funcions for PathPlanner class
 
     Each function has as call sign:
-    func(decoded_path, decoded_start, decoded_dest, nr_frames)
+    func(model, z_path, z_start, z_dest, nr_frames)
     Args:
-        decoded_path:  Decoded frames in the path for which the loss is calculated.
-                       The error is only calculated of these frames
-        decoded_start: First decoded frame of total path. Used to calculate 
-                       error of next frame
-        decoded_dest:  Last decoded frame of total path. Used to calculate
-                       error of previous frame
-        nr_frames:     Number of frames in the path excluding start and dest
+        model:          The trained VAE model that is used for encoding
+                        and decoding frames.
+        z_path:         Encoded frames in the path for which the loss is calculated.
+                        The error is only calculated of these frames
+        z_start:        First encoded frame of total path. Used to calculate 
+                        error of next frame
+        z_dest:         Last encoded frame of total path. Used to calculate
+                        error of previous frame
+        nr_frames:      Number of frames in the path excluding start and dest
     """
 
-    def l2_loss(decoded_path, decoded_start, decoded_dest, nr_frames):
+    def l2_loss(model, z_path, z_start, z_dest, nr_frames):
         """ Pixelwise L2 loss of the frames."""
+        decoded_path  = model.decode(z_path)
+        decoded_start = model.decode(z_start)
+        decoded_dest  = model.decode(z_dest)
 
         loss_tensor = Variable(torch.zeros(nr_frames, 3, 64, 64).double().cuda())
         for i in range(nr_frames): 
@@ -40,8 +45,11 @@ class LossFunctions(object):
         return torch.sum(loss_tensor)
 
 
-    def l1_loss(decoded_path, decoded_start, decoded_dest, nr_frames):
+    def l1_loss(model, z_path, z_start, z_dest, nr_frames):
         """ Pixelwise L1 loss of the frames."""
+        decoded_path  = model.decode(z_path)
+        decoded_start = model.decode(z_start)
+        decoded_dest  = model.decode(z_dest)
 
         loss_tensor = Variable(torch.zeros(nr_frames, 3, 64, 64).double().cuda())
         for i in range(nr_frames): 
@@ -57,7 +65,15 @@ class LossFunctions(object):
 
         return torch.sum(loss_tensor)
 
-    def ssim_loss(decoded_path, decoded_start, decoded_dest, nr_frames):
+    def ssim_loss(model, z_path, z_start, z_dest, nr_frames):
+        """ The Structural Similarity Metric loss 
+
+        Calculates the negative Structural Similarity Metric 
+        """
+        decoded_path  = model.decode(z_path)
+        decoded_start = model.decode(z_start)
+        decoded_dest  = model.decode(z_dest)
+        
         start = time.time()
         pad = (5, 5, 5, 5)
         shape = (64, 64)
@@ -82,7 +98,15 @@ class LossFunctions(object):
         return loss
 
 
-    def correlation_loss(decoded_path, decoded_start, decoded_dest, nr_frames):
+    def correlation_loss(model, z_path, z_start, z_dest, nr_frames):
+        """ Similar to the l2 loss, except all images have zero mean
+            and are normalized to their variance. 
+            
+        """
+        decoded_path  = model.decode(z_path)
+        decoded_start = model.decode(z_start)
+        decoded_dest  = model.decode(z_dest)
+
         loss = 0
         for i in range(nr_frames):
             if i is 0:
@@ -119,6 +143,8 @@ class LossFunctions(object):
 
         return loss
 
+    def l2_on_the_data(model, z_path, z_start, z_dest, nr_frames):
+        pass
 
 def ssim(image_a, image_b, shape):
     image_a = image_a.view(3, 74, 74)

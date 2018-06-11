@@ -79,10 +79,7 @@ class PathPlanner(nn.Module):
         """ Perform gradient descend on the latent path """
 
         optimizer.zero_grad()
-        decoded_path  = self.model.decode(self.z_path)
-        decoded_start = self.model.decode(self.z_a)
-        decoded_dest  = self.model.decode(self.z_b)
-        loss = loss_func(decoded_path, decoded_start, decoded_dest, self.nr_frames)
+        loss = loss_func(self.model, self.z_path, self.z_a, self.z_b, self.nr_frames)
         loss.backward(retain_graph=True)
         print('Loss on path: {}'.format(loss.data[0]))
         optimizer.step()
