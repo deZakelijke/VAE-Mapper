@@ -29,11 +29,11 @@ class VAE(nn.Module):
         self.intermediate_dim_disc = 32 * 60 * 60
 
         # Encoding layers for the mean and logvar of the latent space
-        self.conv1 = nn.Conv2d(self.img_chns, self.filters, 5, stride=2, padding=2)
+        self.conv1 = nn.Conv2d(self.img_chns, self.filters, 3, stride=2, padding=1)
         self.bn_e1 = nn.BatchNorm2d(self.filters)
-        self.conv2 = nn.Conv2d(self.filters, self.filters * 2, 5, stride=2, padding=2)
+        self.conv2 = nn.Conv2d(self.filters, self.filters * 2, 3, stride=2, padding=1)
         self.bn_e2 = nn.BatchNorm2d(self.filters * 2)
-        self.conv3 = nn.Conv2d(self.filters * 2, self.filters * 4, 5, stride=2, padding=2)
+        self.conv3 = nn.Conv2d(self.filters * 2, self.filters * 4, 3, stride=2, padding=1)
         self.bn_e3 = nn.BatchNorm2d(self.filters * 4)
         self.fc_m  = nn.Linear(self.flat * 4, self.latent_dims)
         self.fc_s  = nn.Linear(self.flat * 4, self.latent_dims)
@@ -43,20 +43,20 @@ class VAE(nn.Module):
         # Decoding layers
         self.fc_d    = nn.Linear(self.latent_dims, self.flat * 4)
         self.bn_d1   = nn.BatchNorm1d(self.flat * 4)
-        self.deConv1 = nn.ConvTranspose2d(self.filters * 16, self.filters * 8, 5,
-                                          stride=2, padding=2, output_padding=1)
+        self.deConv1 = nn.ConvTranspose2d(self.filters * 16, self.filters * 8, 3,
+                                          stride=2, padding=0)
         self.bn_d2   = nn.BatchNorm2d(self.filters * 8)
-        self.deConv2 = nn.ConvTranspose2d(self.filters * 8, self.filters * 4, 5,
-                                          stride=2, padding=2, output_padding=1)
+        self.deConv2 = nn.ConvTranspose2d(self.filters * 8, self.filters * 4, 3,
+                                          stride=2, padding=1)
         self.bn_d3   = nn.BatchNorm2d(self.filters * 4)
-        self.deConv3 = nn.ConvTranspose2d(self.filters * 4, self.filters * 2, 5,
-                                          stride=2, padding=2, output_padding=1)
+        self.deConv3 = nn.ConvTranspose2d(self.filters * 4, self.filters * 2, 3,
+                                          stride=2, padding=1)
         self.bn_d4   = nn.BatchNorm2d(self.filters * 2)
-        self.deConv4 = nn.ConvTranspose2d(self.filters * 2, self.filters, 5,
-                                          stride=2, padding=2, output_padding=1)
+        self.deConv4 = nn.ConvTranspose2d(self.filters * 2, self.filters, 3,
+                                          stride=2, padding=1)
         self.bn_d5   = nn.BatchNorm2d(self.filters)
-        self.conv_d  = nn.Conv2d(self.filters, self.img_chns, 5, 
-                                 stride=1, padding=2)
+        self.conv_d  = nn.Conv2d(self.filters, self.img_chns, 4, 
+                                 stride=1, padding=1)
 
         # Other network componetns
         self.relu = nn.ReLU()
@@ -64,10 +64,15 @@ class VAE(nn.Module):
 
 
     def encode(self, x):
+        #print("x", x.shape)
         h1 = self.relu(self.bn_e1(self.conv1(x)))
+        #print(h1.shape)
         h2 = self.relu(self.bn_e2(self.conv2(h1)))
+        #print(h2.shape)
         h3 = self.relu(self.bn_e3(self.conv3(h2)))
+        #print(h3.shape)
         h4 = h3.view(-1, self.flat * 4)
+        #print(h4.shape)
         mu = self.relu(self.bn_e4(self.fc_m(h4)))
         logvar = self.relu(self.bn_e4(self.fc_s(h4)))
         return mu, logvar
@@ -82,13 +87,21 @@ class VAE(nn.Module):
 
 
     def decode(self, z):
+        #print("z", z.shape)
         h1 = self.relu(self.bn_d1(self.fc_d(z)))
+        #print(h1.shape)
         h2 = h1.view(-1, self.flat // 4, 4, 4)
+        #print(h2.shape)
         h3 = self.relu(self.bn_d2(self.deConv1(h2)))
+        #print(h3.shape)
         h4 = self.relu(self.bn_d3(self.deConv2(h3)))
+        #print(h4.shape)
         h5 = self.relu(self.bn_d4(self.deConv3(h4)))
+        #print(h5.shape)
         h6 = self.relu(self.bn_d5(self.deConv4(h5)))
+        #print(h6.shape)
         h7 = self.sigmoid(self.conv_d(h6))
+        #print(h7.shape)
         return h7
 
 
