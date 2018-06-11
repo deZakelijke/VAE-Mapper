@@ -4,7 +4,9 @@ import time
 from torch import nn, optim
 from torch.autograd import Variable
 from torch.nn import functional as F
+from torch.utils.data import DataLoader
 from VAE_class import VAE
+from VideoData import VideoData
 
 
 class LossFunctions(object):
@@ -143,8 +145,23 @@ class LossFunctions(object):
 
         return loss
 
-    def l2_on_the_data(model, z_path, z_start, z_dest, nr_frames):
-        pass
+    def l2_nearest_data(model, z_path, z_start, z_dest, nr_frames):
+        decoded_path  = model.decode(z_path)
+        decoded_start = model.decode(z_start)
+        decoded_dest  = model.decode(z_dest)
+
+        loss = LossFunctions.l2_loss(model, z_path, z_start, z_dest, nr_frames)
+        
+        data_size = 2
+        data = DataLoader(VideoData(nr_images=data_size), batch_size=1, shuffle=False)
+        for i in range(nr_frames):
+            # TODO something with dataloader not being a Variable
+            closest_image = torch.min(data, decoded_path[i])
+            loss += (decoded_path[i] - closest_image) ** 2
+
+        return loss
+
+       
 
 def ssim(image_a, image_b, shape):
     image_a = image_a.view(3, 74, 74)

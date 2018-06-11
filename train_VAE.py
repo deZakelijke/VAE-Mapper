@@ -38,7 +38,6 @@ torch.manual_seed(args.seed)
 if args.cuda:
     torch.cuda.manual_seed(args.seed)
 
-# TODO dit even begrijpen
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 dataset = VideoData(nr_images=args.nr_images)
 
