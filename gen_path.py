@@ -121,14 +121,15 @@ class PathPlanner(nn.Module):
         self.z_path = nn.Parameter(self.z_path.data.clone(), requires_grad=True)
 
 
-    def convert_path_to_images(self, nr_frames):
+    def convert_path_to_images(self, nr_frames, function, epochs):
         """ Converts the path in the latent space to a sequence of images """
         image_path = torch.zeros(self.size[0] + 2, *self.dims[1:])
         image_path = Variable(image_path).double().cuda()
         image_path[0] = self.model.decode(self.z_a)
         image_path[1:-1] = self.model.decode(self.z_path)
         image_path[-1] = self.model.decode(self.z_b)
-        save_image(image_path.data, 'results/path.png', nrow=int(np.sqrt(nr_frames)) + 1)
+        save_image(image_path.data, 'results/path_{}_{}.png'.format(function, epochs), 
+                   nrow=int(np.sqrt(nr_frames)) + 1)
 
     def save_path_to_file(self, save_path, epochs):
         """ Save latent path to file """
@@ -223,7 +224,7 @@ if __name__ == '__main__':
                     'l1' : LF.l1_loss,
                     'ssim' : LF.ssim_loss,
                     'correlation' : LF.correlation_loss,
-                    'nearest_image' : LF.l2_nearest_data}
+                    'nearest_image' : LF.l1_nearest_data}
     
     start = np.random.randint(1, high=1000)
     dest = np.random.randint(1001, high=2000)
@@ -246,6 +247,7 @@ if __name__ == '__main__':
         dest = Image.open('images/' + str(args.dest) + '.png').resize((64, 64))
         path_planner.generate_latent_path(start, dest, args.nr_frames)
 
+
     if args.epochs:
         optimizer = optim.Adam([path_planner.z_path], lr = args.learning_rate)
         for i in range(1, args.epochs + 1):
@@ -253,7 +255,7 @@ if __name__ == '__main__':
             path_planner.gradient_descend_path(loss_func)
 
     if args.no_display_path:
-        path_planner.convert_path_to_images(args.nr_frames)
+        path_planner.convert_path_to_images(args.nr_frames, args.loss_function, args.epochs)
 
     if args.save_z_path:
         path_planner.save_path_to_file(args.save_z_path, args.epochs)
