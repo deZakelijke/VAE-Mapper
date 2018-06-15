@@ -147,6 +147,12 @@ class LossFunctions(object):
         return loss
 
     def l1_nearest_data(model, z_path, z_start, z_dest, nr_frames):
+        """ Combination of the l1 loss and nn-image distance
+
+        Find the nearest neighbour of the decoded images in the original data
+        and add the distance to the closest neighbour to the l1 loss.
+        """
+
         decoded_path  = model.decode(z_path)
         decoded_start = model.decode(z_start)
         decoded_dest  = model.decode(z_dest)
@@ -162,15 +168,35 @@ class LossFunctions(object):
                 if (dist < shortest_dist).data[0]:
                     shortest_dist = torch.sum((data_point - decoded_path[i]) ** 2)
                     closest_image = data_point
-            loss += torch.sum(decoded_path[i] - closest_image) ** 2
+            loss += torch.sum((decoded_path[i] - closest_image) ** 2)
 
         return loss
 
     
-    def l1_nearset_latent(model, z_path, z_start, z_dest, nr_frames):
-        loss = LossFunctions.l1_loss(model, z_path, z_start, z_Dest, nr_frames)
-        return loss
+    def l1_nearest_latent(model, z_path, z_start, z_dest, nr_frames):
+        """ Combination of the l1 loss and the nn-latent point loss
+
+        Find the nearest neighbour of the latent path to the encoding of
+        the original data and add the distance to the closest neighbour
+        to the l1 loss.
+        """
+        loss = LossFunctions.l1_loss(model, z_path, z_start, z_dest, nr_frames)
         
+        data_size = 2000
+        data = DataLoader(VideoData(nr_images=data_size), batch_size=1, shuffle=False)
+        for i in range(nr_frames):
+            shortest_dist = sys.maxsize
+            for data_point in data:
+                data_point = Variable(data_point).cuda()
+                z_point = model.encode(data_point)[0]
+                dist = torch.sum((z_point - z_path[i]) ** 2)
+                if (dist < shortest_dist).data[0]:
+                    shortest_dist = torch.sum((z_point - z_path[i]) ** 2)
+                    closest_point = z_point
+            loss += torch.sum((z_point - z_path[i]) ** 2)
+        return loss
+               
+
        
 
 def ssim(image_a, image_b, shape):

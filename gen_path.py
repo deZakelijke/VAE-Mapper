@@ -131,15 +131,16 @@ class PathPlanner(nn.Module):
         save_image(image_path.data, 'results/path_{}_{}.png'.format(function, epochs), 
                    nrow=int(np.sqrt(nr_frames)) + 1)
 
-    def save_path_to_file(self, save_path, epochs):
+    def save_path_to_file(self, save_path, function, epochs):
         """ Save latent path to file """
         numpy_path = np.zeros((self.size[0] + 2, self.size[1]))
         numpy_path[1:-1] = self.z_path.data.cpu().numpy()
         numpy_path[0] = self.z_a.data.cpu().numpy()
         numpy_path[-1] = self.z_b.data.cpu().numpy()
-        file_name = "{0}z_path_nr_frames_{1}_epochs_{2}.pt".format(
+        file_name = "{}z_path_nr_frames_{}_function_{}_epochs_{}.pt".format(
                     save_path, 
                     self.nr_frames + 2,
+                    function,
                     epochs)
         pickle.dump(numpy_path, open(file_name, 'wb'))
 
@@ -217,14 +218,15 @@ if __name__ == '__main__':
                         default = 'l2',
                         metavar = 'S',
                         help = 'Loss function for gradient descend: \
-                                l2 | l1 | ssim | correlation | nearest_image')
+                                l2 | l1 | ssim | correlation | nearest_image | nearest_latent')
 
     args = parser.parse_args()
     FUNCTION_MAP = {'l2' : LF.l2_loss,
                     'l1' : LF.l1_loss,
                     'ssim' : LF.ssim_loss,
                     'correlation' : LF.correlation_loss,
-                    'nearest_image' : LF.l1_nearest_data}
+                    'nearest_image' : LF.l1_nearest_data,
+                    'nearest_latent' : LF.l1_nearest_latent}
     
     start = np.random.randint(1, high=1000)
     dest = np.random.randint(1001, high=2000)
@@ -258,6 +260,6 @@ if __name__ == '__main__':
         path_planner.convert_path_to_images(args.nr_frames, args.loss_function, args.epochs)
 
     if args.save_z_path:
-        path_planner.save_path_to_file(args.save_z_path, args.epochs)
+        path_planner.save_path_to_file(args.save_z_path, args.loss_function, args.epochs)
 
 
