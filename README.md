@@ -5,5 +5,9 @@ The training data is a sequence of images extracted from a video. Given a video,
 
 ffmpeg -i video.mp4 -vf fps=10 %d.png
 
-One of the video's used is a video from the UvA FNWI Robotics lab and can be found at the following link:
-https://youtu.be/ao6auAcw0dc
+The model can then be trained by running train\_VAE.py
+Although the training of the VAE can be done without a GPU, this is stronly discouraged.
+
+After the VAE model is trained, path generation can be done with either gen\_path.py or with graph\_search.py
+
+The extension with the GAN does not quite work since the training is still unstable.
