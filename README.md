@@ -1,7 +1,8 @@
 ## Path Planning with a Variational Autoencoder
 Made by Micha de Groot
 
-This repository contains the code used in the thesis: <link not available yet>
+This repository contains the code used in the thesis: (link not available yet)
+
 The overall goal is to train va VAE on image data from an unchanging location, preferrably indoors, and then generate a path from A to B consisting of a sequence of images, where the first frame is image A and the last frame is image B. The model does this by encoding A and B and the performing path planning through the latent space.
 
 #### Useful information for running the code
